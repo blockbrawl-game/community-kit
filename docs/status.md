@@ -24,7 +24,7 @@ dotnet test tests/BlockBrawl.CommunityModes.Tests
 
 - **ClearScript is pinned to 7.4.5.** In 7.5.0 and 7.5.1 a loop that calls `new Array(n)` ignores both `Interrupt()` and the heap monitor; the process grew past 4 GB with a 32 MB limit. `ScriptSandboxTests.HeapBomb_IsContained` and `ArrayLoop_IsInterruptedByTheWatchdog` guard this. Run them before upgrading.
 - **Typed arrays and `ArrayBuffer` are removed in the prelude.** Their memory lives outside the JavaScript heap, so the heap limit does not see it. This applies to the dev kit too, since the prelude is shared.
-- **`eval` and `new Function` still work on the server.** The dev kit blocks them (Node `vm` option); ClearScript has no equivalent switch. A mode that uses them fails `devkit test`, so it cannot pass review, but the server does not enforce it.
+- **`eval` and every function constructor are closed in the prelude.** The dev kit host already refused code from strings (Node `vm` option); ClearScript has no such switch, so the prelude now removes `eval` and makes `Function` and the async/generator constructors throw. Both hosts behave the same.
 - **The heap limit is enforced at V8 interrupt checks, not inside a native call.** The bombs tried so far (arrays, objects, 256 MB strings) were stopped in about 80 ms, but a single built-in call can still overshoot the limit before the script is stopped. Put a memory limit on the community silo's container as the backstop.
 
 ## Differences from the plan
@@ -35,20 +35,56 @@ dotnet test tests/BlockBrawl.CommunityModes.Tests
 - The registry reads `<mode>/dist/server.bundle.js`, so a mode must be built with `devkit build <mode>` before the server can load it.
 - State, batch and step limits are enforced in `CommunityMatch` rather than in `ScriptSandbox`, which stays game-agnostic. They still surface as an aborted match with the limit name.
 
-## Next: milestone 3 (Orleans + gateway)
+## Done: milestone 3 (Orleans + gateway)
 
-`CommunityMatchGrain`, snapshot store, `/modehub` with match-scoped tickets, `CommunityStreamManager`, silo role placement, service registration behind `CommunityModes:Enabled`, Dockerfile entries, and a SignalR transport for the shell (`devkit dev --remote`). The wire protocol to keep is documented at the top of `devkit/match.js`.
+- **Grain** `CommunityMatchGrain` (`blockbrawl.communitymatch`, stream namespace `CommunityMatch`) on the shared session engine. It adds what `IGameLogic` cannot express: rejections as events, player status forwarding, a sync for every player at start and on request, its own disconnect grace per player, and JSON-state snapshots (at start, every 5 actions, every 10 seconds, and on deactivation).
+- **Snapshots** `CommunityMatchSnapshotStore` on Marten. Restoring recreates the sandbox from the pinned mode version and hash. A storage failure while loading fails the call and is retried; it is never mistaken for "no such match".
+- **Gateway** `/modehub` (`CommunityHub`), authenticated by a second JWT scheme: a match-scoped ticket naming one player and one match. `CommunityStreamManager` routes by `TargetPlayerId` and only writes to connections this gateway holds. `GameHub.GetCommunityModeTicket` issues a ticket to a signed-in player; `POST /api/dev/mode-session` (Development only) issues tickets for throwaway players.
+- **Silo role** Community matches use `CommunitySiloPlacement`; the director in the Silo host only picks silos whose metadata has the community role. `Silo:Roles` sets it (`game`, `community`, or both). A local single silo gets both; a clustered silo defaults to `game` and must opt in.
+- **Dev kit** `devkit dev <mode> --remote` and `shell/transport-signalr.js`.
+- Both projects are in the Silo and Gateway Dockerfiles. `tests/BlockBrawl.IntegrationTests` compiles again (it referenced the ambiguous `Program`).
 
-What the grain has to do that `IGameLogic` cannot express (also in the summary comment of `JsGameLogic`):
+### Running it locally
 
-1. Broadcast `CommunityMatch.DrainPendingEvents()` in `OnSessionStartedAsync`; `InitializeAsync` cannot return the opening steps.
-2. Turn a validation failure (`ActionValidationResult.RejectReason`) into a `rejected` message for the sender.
-3. Call `CommunityMatch.SetStatus` on disconnect, reconnect and forfeit.
-4. Route events by `TargetPlayerId`; null means everyone in the match.
-5. After a sync, also send the result or abort if the match has ended.
-6. Dispose the match in `OnDeactivateAsync`, and call `AnchorClock` after restoring from a snapshot.
+```bash
+make deps-up
+# Silo
+DOTNET_ENVIRONMENT=Development CommunityModes__Enabled=true CommunityModes__PackagesPath=community/modes dotnet run --project src/Apps/BlockBrawl.Silo
+# Gateway
+ASPNETCORE_ENVIRONMENT=Development CommunityModes__Enabled=true dotnet run --project src/Apps/BlockBrawl.Gateway
+# Dev kit against them
+cd community && node devkit/cli.js dev duel-lite --remote
+```
 
-Before starting: `tests/BlockBrawl.IntegrationTests` does not compile on this branch (`CS0433`, `Program` exists in both Gateway and Silo). The branch does not touch that code, so `main` is probably the same; not checked. Milestone 3 changes both hosts, so fix that first.
+Configuration, all under `CommunityModes`: `Enabled`, `PackagesPath`, `ApprovedHashes`, `RequireApprovedHash`, `DisabledModes` (silo); `Enabled`, `TicketSigningKey` (at least 32 bytes, required outside Development), `TicketLifetimeMinutes` (gateway).
+
+### Verified on 2026-11-12
+
+Against a real Silo and Gateway with `duel-lite`, by script and in the browser through `devkit dev --remote`:
+
+- Two players join, the match starts, both get a sync, moves are acknowledged and appear on both boards, illegal moves are rejected with the mode's reason.
+- A player disconnects, the other moves, the first reconnects and is caught up.
+- The Silo process is killed mid-match and started again: both players are resynced automatically with the same sequence number and the same state, and the match continues. Up to 10 seconds of clock (the snapshot interval) is lost.
+
+Not done: playing a match to its end through the UI, `stack-race` on the server, more than one gateway or silo, and `BlockBrawl.IntegrationTests` (not run; it only compiles).
+
+### Known gaps
+
+- **No unit tests for the grain, hub or stream manager.** They were verified end to end by hand. A test-cluster suite belongs with the integration tests.
+- **Messages travel as JSON text**, not MessagePack as the plan intended. It keeps the browser shell free of a MessagePack dependency; revisit if bandwidth matters.
+- **The silo reads a mode's bundle once.** After editing `server.js`, restart the silo (or call `ModeRegistry.Reload`, which nothing exposes yet).
+- **A finished match cannot be re-read.** After completion the grain deactivates; a player who reconnects later gets nothing back.
+- **A player who never arrives leaves the others waiting.** There is no start timeout before the match begins.
+- **The Gateway references the whole module** for its contracts, which pulls ClearScript's native library into the Gateway image. Splitting the contracts into their own project would avoid that.
+- **Deploying mode packages** (how `dist/` gets onto a community silo) is not designed yet, and the community silo needs a container memory limit.
+
+### Local environment notes
+
+- On the machine used for verification, another project's Postgres container owned port 5432, and StackExchange.Redis could not connect to `localhost:6379` (IPv6 loopback) while `127.0.0.1:6379` worked. Both are overridable: `ConnectionStrings__Postgres` and `ConnectionStrings__Redis`.
+
+## Next
+
+Later items from the plan: public repo with CI and publishing, catalog / rooms / matchmaking / bots / capped rewards, Unity embedding. Before those, the risks listed in `plan.md` (Apple guideline 4.7, webview performance on a cheap Android device, review load).
 
 ## Setting up on another machine
 

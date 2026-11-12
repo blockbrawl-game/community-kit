@@ -6,6 +6,7 @@ import { bundleClient, bundleServer, loadMode } from './build.js';
 
 const USAGE = `Usage:
   devkit dev <mode> [--players N] [--port 5173] [--seed N]
+  devkit dev <mode> --remote [--gateway http://localhost:5121] [--players N] [--port 5173]
   devkit test <mode> [--runs 20] [--seed N] [--record file.json]
   devkit build <mode> [--out dir]
 
@@ -37,7 +38,16 @@ try {
     process.exit(command ? 1 : 0);
   }
 
-  if (command === 'dev') {
+  if (command === 'dev' && flags.remote) {
+    const { startRemoteDevServer } = await import('./dev-remote.js');
+    await startRemoteDevServer({
+      modeName,
+      port: intFlag(flags.port, 'port'),
+      playerCount: intFlag(flags.players, 'players'),
+      seed: intFlag(flags.seed, 'seed'),
+      gateway: typeof flags.gateway === 'string' ? flags.gateway : undefined,
+    });
+  } else if (command === 'dev') {
     const { startDevServer } = await import('./dev-server.js');
     await startDevServer({
       modeName,

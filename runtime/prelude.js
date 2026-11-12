@@ -79,6 +79,28 @@
     delete globalThis[name];
   });
 
+  // No code from strings. The dev kit host already refuses it; the server host has no such switch, so the
+  // entry points are closed here to make both behave the same: eval is gone, and every function constructor
+  // (plain, async, generator, async generator) throws.
+  (function () {
+    var RealFunction = Function;
+    function blocked() {
+      throw new EvalError('Code generation from strings is not available to modes.');
+    }
+    blocked.prototype = RealFunction.prototype;
+    var prototypes = [
+      RealFunction.prototype,
+      Object.getPrototypeOf(function* () {}),
+      Object.getPrototypeOf(async function () {}),
+      Object.getPrototypeOf(async function* () {}),
+    ];
+    prototypes.forEach(function (proto) {
+      Object.defineProperty(proto, 'constructor', { value: blocked, writable: false, configurable: false, enumerable: false });
+    });
+    Object.defineProperty(globalThis, 'Function', { value: blocked, writable: false, configurable: false, enumerable: false });
+    Object.defineProperty(globalThis, 'eval', { value: undefined, writable: false, configurable: false, enumerable: false });
+  })();
+
   function pushLog(args) {
     if (logs.length >= limits.maxLogsPerCall) return;
     var parts = [];

@@ -38,10 +38,34 @@ function report() {
   if (parent !== window) parent.postMessage({ bbDev: 'stat', playerId, lastSeq: shell.lastSeq, ...stats }, location.origin);
 }
 
+// `devkit dev` runs the match in the dev server; `devkit dev --remote` connects to the real gateway.
+async function createTransport() {
+  const info = await (await fetch('/api/info')).json();
+  if (!info.remote) return localTransport({ playerId });
+
+  await new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = '/vendor/signalr.js';
+    script.onload = resolve;
+    script.onerror = () => reject(new Error('Could not load the SignalR client. Run `npm install` in community/.'));
+    document.head.appendChild(script);
+  });
+  const { signalRTransport } = await import('/shell/transport-signalr.js');
+  return signalRTransport({ signalR: window.signalR, hubUrl: info.remote.hubUrl, ticket: info.remote.tickets[playerId] });
+}
+
+let transport;
+try {
+  transport = await createTransport();
+} catch (error) {
+  show(error.message);
+  throw error;
+}
+
 const shell = createShell({
   frame: document.getElementById('mode'),
   modeHtml,
-  transport: localTransport({ playerId }),
+  transport,
   onEvent(event, detail) {
     if (event === 'blocked') { stats.aborted = true; show(`Mode blocked: ${detail.reason}`); }
     if (event === 'gap') stats.gaps++;
