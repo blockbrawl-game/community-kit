@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mode dev kit</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --panel: #ffffff; --line: #dfe2e8; --text: #1b1f27; --dim: #667085;
+    --accent: #2f6fed; --ok: #1f9d55; --warn: #b7791f; --bad: #d64545; --code: #f0f2f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101216; --panel: #191c22; --line: #2a2f39; --text: #e6e8ee; --dim: #8b93a5;
+      --accent: #6aa0ff; --ok: #5fd08a; --warn: #e0b354; --bad: #ff6b76; --code: #14171c;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 13px/1.45 system-ui, sans-serif; display: flex; flex-direction: column; }
+  button { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  header { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  header h1 { font-size: 15px; margin: 0; }
+  header .meta { color: var(--dim); font-variant-numeric: tabular-nums; }
+  header .spacer { flex: 1; }
+  .banner { display: none; padding: 8px 16px; background: color-mix(in srgb, var(--bad) 18%, var(--panel)); border-bottom: 1px solid var(--bad); }
+  .banner.show { display: block; }
+  main { flex: 1; min-height: 0; display: flex; }
+  .players { flex: 1; min-width: 0; overflow: auto; padding: 16px; display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+  .player { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; width: 320px; overflow: hidden; }
+  .player .head { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  .player .head b { flex: 1; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
+  .dot.on { background: var(--ok); }
+  .player iframe { display: block; width: 100%; height: 600px; border: 0; }
+  .controls { padding: 8px 10px; border-top: 1px solid var(--line); display: grid; grid-template-columns: 64px 1fr 52px; gap: 4px 8px; align-items: center; }
+  .controls label { color: var(--dim); }
+  .controls output { text-align: right; font-variant-numeric: tabular-nums; }
+  .controls input[type=range] { width: 100%; }
+  .controls .row { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; }
+  .controls .counts { flex: 1; color: var(--dim); font-variant-numeric: tabular-nums; }
+  aside { width: 420px; max-width: 45vw; border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+  .tabs { display: flex; border-bottom: 1px solid var(--line); }
+  .tabs button { border: 0; border-radius: 0; border-bottom: 2px solid transparent; padding: 9px 14px; background: none; }
+  .tabs button.active { border-bottom-color: var(--accent); font-weight: 600; }
+  .tabs .spacer { flex: 1; }
+  .tabs label { align-self: center; padding-right: 12px; color: var(--dim); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border-bottom: 1px solid var(--line); }
+  .stats div { background: var(--panel); padding: 8px 10px; }
+  .stats span { display: block; color: var(--dim); font-size: 11px; }
+  .stats b { font-variant-numeric: tabular-nums; }
+  .pane { flex: 1; min-height: 0; overflow: auto; display: none; }
+  .pane.active { display: block; }
+  .entry { border-bottom: 1px solid var(--line); padding: 4px 10px; font: 12px/1.4 ui-monospace, Consolas, monospace; cursor: pointer; }
+  .entry .sum { display: flex; gap: 8px; }
+  .entry .who { color: var(--accent); width: 22px; }
+  .entry .kind { width: 62px; }
+  .entry .what { flex: 1; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .entry .bytes { color: var(--dim); }
+  .entry.dropped { opacity: 0.55; text-decoration: line-through; }
+  .entry.log .kind { color: var(--warn); }
+  .entry.error .kind { color: var(--bad); }
+  .entry pre { margin: 4px 0 2px; white-space: pre-wrap; word-break: break-all; display: none; color: var(--text); }
+  .entry.open pre { display: block; }
+  pre#state { margin: 0; padding: 10px; font: 12px/1.4 ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-all; }
+  @media (max-width: 900px) { main { flex-direction: column; } aside { width: auto; max-width: none; border-left: 0; border-top: 1px solid var(--line); height: 45vh; } }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Mode dev kit</h1>
+  <span class="meta" id="meta"></span>
+  <span class="spacer"></span>
+  <button id="restartSame">Restart with same seed</button>
+  <button id="restart" class="primary">New match</button>
+</header>
+<div class="banner" id="banner"></div>
+<main>
+  <div class="players" id="players"></div>
+  <aside>
+    <div class="stats">
+      <div><span>Match time</span><b id="sTime">0.0 s</b></div>
+      <div><span>State size</span><b id="sState">0 B</b></div>
+      <div><span>Call time p50 / p99</span><b id="sCall">–</b></div>
+      <div><span>Batches sent</span><b id="sBatches">0</b></div>
+      <div><span>Largest batch</span><b id="sMaxBatch">0 B</b></div>
+      <div><span>Avg per player</span><b id="sRate">0 B/s</b></div>
+    </div>
+    <div class="tabs">
+      <button data-tab="log" class="active">Messages</button>
+      <button data-tab="state">State</button>
+      <span class="spacer"></span>
+      <label><input type="checkbox" id="pause"> Pause</label>
+    </div>
+    <div class="pane active" id="log"></div>
+    <div class="pane" id="statePane"><pre id="state"></pre></div>
+  </aside>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const info = await (await fetch('/api/info')).json();
+const initialNet = (await (await fetch('/api/state')).json()).net;
+const panels = [];
+const fmtBytes = (n) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`);
+const post = (url, body) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+
+$('title').textContent = `${info.manifest.name} ${info.manifest.version}`;
+document.title = `${info.manifest.name} · dev kit`;
+
+info.players.forEach((player, index) => {
+  const el = document.createElement('section');
+  el.className = 'player';
+  el.innerHTML = `
+    <div class="head"><span class="dot"></span><b></b><button data-act="conn">Disconnect</button><button data-act="forfeit">Forfeit</button></div>
+    <iframe title="Player ${index + 1}"></iframe>
+    <div class="controls">
+      <label for="lat${index}">Latency</label><input id="lat${index}" type="range" min="0" max="500" step="10" value="0" data-net="latencyMs"><output>0 ms</output>
+      <label for="drop${index}">Drop</label><input id="drop${index}" type="range" min="0" max="50" step="1" value="0" data-net="dropRate"><output>0%</output>
+      <div class="row"><span class="counts"></span></div>
+    </div>`;
+  el.querySelector('b').textContent = player.name;
+  const frame = el.querySelector('iframe');
+  frame.src = `/player.html?player=${player.id}`;
+  const panel = { el, frame, player, connected: false };
+  panels.push(panel);
+
+  for (const input of el.querySelectorAll('input[type=range]')) {
+    const key = input.dataset.net;
+    const label = () => { input.nextElementSibling.textContent = key === 'latencyMs' ? `${input.value} ms` : `${input.value}%`; };
+    // The server keeps network settings across page reloads and matches; show what is in effect.
+    input.value = key === 'dropRate' ? Math.round(initialNet[index].dropRate * 100) : initialNet[index].latencyMs;
+    label();
+    input.addEventListener('input', () => {
+      label();
+      const value = Number(input.value);
+      post('/api/net', { player: index, [key]: key === 'dropRate' ? value / 100 : value });
+    });
+  }
+  el.querySelector('[data-act=conn]').addEventListener('click', () => {
+    frame.contentWindow.postMessage({ bbDev: panel.connected ? 'disconnect' : 'reconnect' }, location.origin);
+  });
+  el.querySelector('[data-act=forfeit]').addEventListener('click', () => post('/api/forfeit', { player: index }));
+  $('players').appendChild(el);
+});
+
+addEventListener('message', (event) => {
+  if (event.origin !== location.origin || event.data?.bbDev !== 'stat') return;
+  const panel = panels.find((p) => p.player.id === event.data.playerId);
+  if (!panel) return;
+  panel.connected = event.data.connected;
+  panel.el.querySelector('.dot').classList.toggle('on', panel.connected);
+  panel.el.querySelector('[data-act=conn]').textContent = panel.connected ? 'Disconnect' : 'Reconnect';
+  panel.el.querySelector('.counts').textContent = `seq ${event.data.lastSeq} · ${event.data.syncs} syncs · ${event.data.gaps} gaps detected`;
+});
+
+async function restart(seed) {
+  $('banner').classList.remove('show');
+  $('log').innerHTML = '';
+  await post('/api/restart', seed === undefined ? {} : { seed });
+  for (const panel of panels) panel.frame.src = panel.frame.src;
+}
+let currentSeed = info.seed;
+$('restart').addEventListener('click', () => restart());
+$('restartSame').addEventListener('click', () => restart(currentSeed));
+
+for (const tab of document.querySelectorAll('.tabs button')) {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('active', b === tab));
+    $('log').classList.toggle('active', tab.dataset.tab === 'log');
+    $('statePane').classList.toggle('active', tab.dataset.tab === 'state');
+  });
+}
+
+function addEntry(className, who, kind, what, bytes, detail) {
+  if ($('pause').checked) return;
+  const log = $('log');
+  const stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 30;
+  const el = document.createElement('div');
+  el.className = `entry ${className}`;
+  const sum = document.createElement('div');
+  sum.className = 'sum';
+  for (const [cls, text] of [['who', who], ['kind', kind], ['what', what], ['bytes', bytes]]) {
+    const span = document.createElement('span');
+    span.className = cls;
+    span.textContent = text;
+    sum.appendChild(span);
+  }
+  el.appendChild(sum);
+  if (detail !== undefined) {
+    const pre = document.createElement('pre');
+    pre.textContent = typeof detail === 'string' ? detail : JSON.stringify(detail, null, 1);
+    el.appendChild(pre);
+    el.addEventListener('click', () => el.classList.toggle('open'));
+  }
+  log.appendChild(el);
+  while (log.childElementCount > 400) log.firstElementChild.remove();
+  if (stick) log.scrollTop = log.scrollHeight;
+}
+
+const events = new EventSource('/api/events');
+events.onmessage = (raw) => {
+  const event = JSON.parse(raw.data);
+  if (event.type === 'out') {
+    const m = event.message;
+    const what = m.kind === 'steps' || m.kind === 'sync'
+      ? `#${m.seq} ${m.steps.map((s) => s.t ?? '?').join(' ')}${m.ackActionId ? ' (ack)' : ''}`
+      : m.kind === 'rejected' ? m.reason : '';
+    addEntry(event.dropped ? 'dropped' : '', `P${event.player + 1}`, m.kind, what, fmtBytes(event.bytes), m);
+  } else if (event.type === 'log') {
+    addEntry('log', '', 'log', event.message, '');
+  } else if (event.type === 'error') {
+    addEntry('error', '', 'error', event.message, '');
+    $('banner').textContent = `Mode error: ${event.message}`;
+    $('banner').classList.add('show');
+  } else if (event.type === 'match') {
+    currentSeed = event.seed;
+  }
+};
+
+async function poll() {
+  try {
+    const s = await (await fetch('/api/state')).json();
+    $('meta').textContent = `match ${s.matchNumber} · seed ${s.seed} · ${info.manifest.tickRate} ticks/s${s.result ? ' · finished' : ''}${s.aborted ? ' · aborted' : ''}`;
+    $('sTime').textContent = `${(s.timeMs / 1000).toFixed(1)} s`;
+    $('sState').textContent = fmtBytes(s.stateBytes);
+    $('sCall').textContent = s.callMs ? `${s.callMs.p50.toFixed(2)} / ${s.callMs.p99.toFixed(2)} ms` : '–';
+    $('sBatches').textContent = s.stats.batches;
+    $('sMaxBatch').textContent = fmtBytes(s.stats.maxBatchBytes);
+    const seconds = Math.max(1, s.timeMs / 1000);
+    $('sRate').textContent = `${Math.round(s.stats.bytesSent / seconds / info.players.length)} B/s`;
+    if ($('statePane').classList.contains('active') && !$('pause').checked) {
+      $('state').textContent = JSON.stringify(s.result ? { result: s.result, state: s.state } : s.state, null, 2);
+    }
+  } catch { /* server restarting */ }
+}
+setInterval(poll, 500);
+poll();
+</script>
+</body>
+</html>

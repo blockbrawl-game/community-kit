@@ -1,0 +1,13 @@
+{
+  "maxTickRate": 30,
+  "maxCallMs": 250,
+  "warnCallP99Ms": 5,
+  "maxHeapMb": 64,
+  "maxStateBytes": 262144,
+  "maxStepsPerCall": 256,
+  "maxBatchBytes": 16384,
+  "maxActionBytes": 4096,
+  "maxActionsPerSecond": 30,
+  "maxServerBundleBytes": 262144,
+  "maxClientBytes": 5242880
+}

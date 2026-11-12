@@ -1,0 +1,21 @@
+{
+  "name": "blockbrawl-community",
+  "private": true,
+  "version": "0.1.0",
+  "description": "SDK, dev kit and reference modes for BlockBrawl community game modes.",
+  "type": "module",
+  "bin": {
+    "devkit": "devkit/cli.js"
+  },
+  "scripts": {
+    "dev": "node devkit/cli.js dev",
+    "test": "node devkit/cli.js test duel-lite && node devkit/cli.js test stack-race",
+    "build": "node devkit/cli.js build"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "esbuild": "^0.25.0"
+  }
+}
