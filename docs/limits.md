@@ -5,6 +5,7 @@
 Server logic runs in a V8 isolate with nothing but the JavaScript language:
 
 - No network, files, timers, `eval` or `new Function`.
+- No typed arrays, `ArrayBuffer`, `DataView` or WebAssembly. Use plain arrays; state is JSON anyway.
 - `Math.random()` and `Date` are deterministic: a seeded generator and the match clock.
 - Given the same seed and the same inputs, a mode must produce exactly the same steps.
 

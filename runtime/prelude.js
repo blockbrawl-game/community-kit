@@ -68,6 +68,17 @@
   MatchDate.UTC = RealDate.UTC;
   globalThis.Date = MatchDate;
 
+  // Binary buffers are allocated outside the JavaScript heap, where the host's heap limit cannot see them.
+  // State is JSON, so a mode has no need for them; removing them keeps everything a mode holds inside the
+  // measured heap. Nothing else in the language hands out a buffer once these names are gone.
+  [
+    'ArrayBuffer', 'SharedArrayBuffer', 'DataView', 'Atomics', 'WebAssembly',
+    'Int8Array', 'Uint8Array', 'Uint8ClampedArray', 'Int16Array', 'Uint16Array', 'Int32Array', 'Uint32Array',
+    'Float16Array', 'Float32Array', 'Float64Array', 'BigInt64Array', 'BigUint64Array',
+  ].forEach(function (name) {
+    delete globalThis[name];
+  });
+
   function pushLog(args) {
     if (logs.length >= limits.maxLogsPerCall) return;
     var parts = [];
