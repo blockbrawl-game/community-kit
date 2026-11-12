@@ -66,7 +66,12 @@ Against a real Silo and Gateway with `duel-lite`, by script and in the browser t
 - A player disconnects, the other moves, the first reconnects and is caught up.
 - The Silo process is killed mid-match and started again: both players are resynced automatically with the same sequence number and the same state, and the match continues. Up to 10 seconds of clock (the snapshot interval) is lost.
 
-Not done: playing a match to its end through the UI, `stack-race` on the server, more than one gateway or silo, and `BlockBrawl.IntegrationTests` (not run; it only compiles).
+In the Docker stack (`docker-compose.community.yml`, images rebuilt from this branch, Postgres clustering), with bots that use each mode's own client model and fuzz generator:
+
+- `duel-lite` with 2 players and `stack-race` with 2 and with 4 players were each played to a result. Every player got the same result, no sequence gaps, and every live client model equalled one built from a fresh sync.
+- `stack-race` was also opened in the browser through `devkit dev stack-race --remote`.
+
+Not done: more than one gateway or silo, the ticket path for signed-in players (`GameHub.GetCommunityModeTicket`), and `BlockBrawl.IntegrationTests` (not run; it only compiles).
 
 ### Known gaps
 
