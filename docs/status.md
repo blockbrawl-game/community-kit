@@ -39,7 +39,7 @@ dotnet test tests/BlockBrawl.CommunityModes.Tests
 
 - **Grain** `CommunityMatchGrain` (`blockbrawl.communitymatch`, stream namespace `CommunityMatch`) on the shared session engine. It adds what `IGameLogic` cannot express: rejections as events, player status forwarding, a sync for every player at start and on request, its own disconnect grace per player, and JSON-state snapshots (at start, every 5 actions, every 10 seconds, and on deactivation).
 - **Snapshots** `CommunityMatchStore` (`MartenCommunityMatchStore` in production). Restoring recreates the sandbox from the pinned mode version and hash. A storage failure while loading fails the call and is retried; it is never mistaken for "no such match".
-- **Gateway** `/modehub` (`CommunityHub`), authenticated by a second JWT scheme: a match-scoped ticket naming one player and one match. `CommunityStreamManager` routes by `TargetPlayerId` and only writes to connections this gateway holds. `GameHub.GetCommunityModeTicket` issues a ticket to a signed-in player; `POST /api/dev/mode-session` (Development only) issues tickets for throwaway players.
+- **Gateway** `/modehub` (`CommunityHub`), authenticated by a second JWT scheme: a match-scoped ticket naming one player and one match. `CommunityStreamManager` routes by `TargetPlayerId` and only writes to connections this gateway holds. `GameHub.CreateCommunityMatch` and `GameHub.GetCommunityModeTicket` create a match and issue tickets to signed-in players (see "Matches are created on the server" below); `POST /api/dev/mode-session` (Development only) does the same for throwaway players.
 - **Silo role** Community matches use `CommunitySiloPlacement`; the director in the Silo host only picks silos whose metadata has the community role. `Silo:Roles` sets it (`game`, `community`, or both). A local single silo gets both; a clustered silo defaults to `game` and must opt in.
 - **Dev kit** `devkit dev <mode> --remote` and `shell/transport-signalr.js`.
 - Both projects are in the Silo and Gateway Dockerfiles. `tests/BlockBrawl.IntegrationTests` compiles again (it referenced the ambiguous `Program`).
@@ -78,13 +78,22 @@ Against a real Silo and Gateway with `duel-lite`, by script and in the browser t
 
 Not verified here: the Docker image build (no Docker daemon in the environment where this was done; the `modes` stage's commands were run by hand against a clean copy and produced the approved hashes), and a manual run against Postgres and Redis.
 
+## Done: the remaining backend gaps (2026-11-13)
+
+- **Matches are created on the server.** `ICommunityMatchGrain.CreateAsync(CommunityMatchSetup)` fixes the mode, the number of players, the seed, and optionally a roster. A ticket now names only a player and a match, and is issued only after `CheckAdmissionAsync` says the player may join (the match exists, has not started or the player is already in it, has a free seat, and the player is on the roster if there is one). The grain checks the same rules again at join, so a signed ticket alone does not get anyone in, and a join can no longer bring a match into being. For clients: `GameHub.CreateCommunityMatch(modeId, players, roster?)` returns the match id (at most one per player every 3 seconds per gateway), then `GameHub.GetCommunityModeTicket(matchId)`. The dev endpoint creates a match with a roster of its throwaway players; the dev kit is unchanged.
+- **Connections are tracked by the match, across gateways.** Each join carries the connection id, and a player counts as disconnected only when their last connection anywhere closes. Before, a player who reloaded onto another gateway was marked disconnected (and forfeited 30 s later) when the old connection's close arrived late. After a reactivation, gateways rejoin each connection they hold, which also resyncs the players. `CommunityMatchInfo.DisconnectedPlayers` shows who is gone.
+- **Mode packages reload without a restart.** The silo polls the packages folder every `CommunityModes:PackagesPollSeconds` (default 30) and reloads when a mode or the approved hashes file changes. New matches get the new package; matches already running keep, and can still be restored with, the one they started on. The kill switch still applies to both.
+- **Old match records are deleted.** Records not written for `CommunityModes:RecordRetentionDays` (default 7) are removed hourly. Running matches are written every few seconds, so this only removes finished matches and ones that can no longer be continued.
+- **Two gateways are tested.** The cluster tests run two gateways, each with its own cluster client: each delivers only to its own connections, exactly once, and the reload-onto-another-gateway case above.
+- The admin dashboard compiles again: a `< 0 =>` switch arm at the start of a line inside `@code` was read as an HTML tag.
+
+Tests: 84 in the fast suite, about 22 s.
+
 ### Known gaps
 
-- **Messages travel as JSON text**, not MessagePack as the plan intended. It keeps the browser shell free of a MessagePack dependency; revisit if bandwidth matters.
-- **The silo reads mode packages once, at start.** Updating a mode means a new image (or a new mounted folder) and a restart of `silo-community`. `ModeRegistry.Reload` exists but nothing calls it.
-- **Any signed-in player can get a ticket for any match id** (`GameHub.GetCommunityModeTicket`). Fine while match ids are random and only handed out by the client; the catalog / matchmaking milestone should issue tickets for matches it created.
-- **Finished match records are kept forever.** They are small (final state plus result), but a retention job will be needed eventually.
-- **More than one gateway** is designed for (each gateway writes only to its own connections) but not tested.
+- **Messages travel as JSON text**, not MessagePack as the plan intended. It keeps the browser shell free of a MessagePack dependency; revisit if bandwidth matters. A choice, not a defect.
+- **A match that has not started yet does not survive a silo restart** (its setup is only in memory). Its players get "This match does not exist" and need a new match.
+- **Not verified against real infrastructure here:** the Docker image build, the Marten implementation of the retention delete, and a run against Postgres and Redis.
 
 ### Local environment notes
 
