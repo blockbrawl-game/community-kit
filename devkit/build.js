@@ -57,6 +57,9 @@ export function validateManifest(manifest, dir) {
 export async function bundleServer(mode) {
   const result = await build({
     entryPoints: [path.join(mode.dir, mode.manifest.server)],
+    // esbuild writes source paths into the bundle relative to this folder. Anchoring it makes the bundle, and so
+    // the hash a reviewer approves, the same whichever folder the build is started from.
+    absWorkingDir: communityRoot,
     bundle: true,
     write: false,
     format: 'iife',

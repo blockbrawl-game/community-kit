@@ -1,6 +1,6 @@
 # Status and handoff
 
-Last updated: 2026-11-12. The approved plan is in [plan.md](plan.md).
+Last updated: 2026-11-13. The approved plan is in [plan.md](plan.md).
 
 ## Done: milestone 1 (contract + dev kit, no backend)
 
@@ -38,7 +38,7 @@ dotnet test tests/BlockBrawl.CommunityModes.Tests
 ## Done: milestone 3 (Orleans + gateway)
 
 - **Grain** `CommunityMatchGrain` (`blockbrawl.communitymatch`, stream namespace `CommunityMatch`) on the shared session engine. It adds what `IGameLogic` cannot express: rejections as events, player status forwarding, a sync for every player at start and on request, its own disconnect grace per player, and JSON-state snapshots (at start, every 5 actions, every 10 seconds, and on deactivation).
-- **Snapshots** `CommunityMatchSnapshotStore` on Marten. Restoring recreates the sandbox from the pinned mode version and hash. A storage failure while loading fails the call and is retried; it is never mistaken for "no such match".
+- **Snapshots** `CommunityMatchStore` (`MartenCommunityMatchStore` in production). Restoring recreates the sandbox from the pinned mode version and hash. A storage failure while loading fails the call and is retried; it is never mistaken for "no such match".
 - **Gateway** `/modehub` (`CommunityHub`), authenticated by a second JWT scheme: a match-scoped ticket naming one player and one match. `CommunityStreamManager` routes by `TargetPlayerId` and only writes to connections this gateway holds. `GameHub.GetCommunityModeTicket` issues a ticket to a signed-in player; `POST /api/dev/mode-session` (Development only) issues tickets for throwaway players.
 - **Silo role** Community matches use `CommunitySiloPlacement`; the director in the Silo host only picks silos whose metadata has the community role. `Silo:Roles` sets it (`game`, `community`, or both). A local single silo gets both; a clustered silo defaults to `game` and must opt in.
 - **Dev kit** `devkit dev <mode> --remote` and `shell/transport-signalr.js`.
@@ -66,17 +66,25 @@ Against a real Silo and Gateway with `duel-lite`, by script and in the browser t
 - A player disconnects, the other moves, the first reconnects and is caught up.
 - The Silo process is killed mid-match and started again: both players are resynced automatically with the same sequence number and the same state, and the match continues. Up to 10 seconds of clock (the snapshot interval) is lost.
 
-Not done: playing a match to its end through the UI, `stack-race` on the server, more than one gateway or silo, and `BlockBrawl.IntegrationTests` (not run; it only compiles).
+## Done: backend before the Unity embedding (2026-11-13)
+
+- **Start timeout.** `CommunityModes:StartTimeoutSeconds` (default 60). A match whose expected players do not all arrive is aborted for those who did, and a player who leaves before the start aborts it at once.
+- **Finished matches can be re-read.** The completed (or aborted) record stays in the store. A participant who reconnects after the grain deactivated gets the final board and the result; anyone else is refused; a finished match is never started over. Before this, a late join to a finished match id would have started a fresh match.
+- **Contracts project.** `BlockBrawl.Modules.CommunityModes.Contracts` holds the grain interface and messages; the Gateway references only it and no longer ships ClearScript.
+- **Silo roles in both directions.** `SiloRoles` (Silo host) makes every grain without its own placement avoid silos that lack the game role, so a community silo hosts community matches only.
+- **Deployment.** The Silo image builds `community/modes` into `/app/community-modes` and requires approved hashes, read from `community/modes/approved.json` (`CommunityModes:ApprovedHashesFile`). `devkit build` prints the hash and is now reproducible from any folder (`absWorkingDir`); `.gitattributes` pins LF for `community/`. `docker-compose.prod.yml` has an opt-in `silo-community` service (`--profile community`) with a 512 MB memory limit, `Silo:Roles=game` on the main silo, and the gateway's `CommunityModes__*` settings; `.env.prod.example` lists the two new variables.
+- **Watchdog fix in `ScriptSandbox`.** The per-call timer can fire slightly before the Stopwatch deadline; the watchdog then returned without re-arming and an endless script ran forever, holding the grain's thread. It now re-arms for the remaining time. `InfiniteLoop_IsAlwaysInterrupted_EvenWhenTheTimerFiresEarly` reproduces the hang without the fix.
+- **Tests: 73 in about 20 s** (fast suite). New cluster tests run the real `CommunityHub`, `CommunityStreamManager`, grain, placement directors and V8 on an in-process two-silo cluster (game + community) with `InMemoryCommunityMatchStore`: placement, acks and rejections, forfeit to result, re-reading a finished match after deactivation, start timeout, leaving before the start, reactivation with gateway resync, game grains staying off the community silo, and `stack-race` ticking on the server and played to its end.
+
+Not verified here: the Docker image build (no Docker daemon in the environment where this was done; the `modes` stage's commands were run by hand against a clean copy and produced the approved hashes), and a manual run against Postgres and Redis.
 
 ### Known gaps
 
-- **No unit tests for the grain, hub or stream manager.** They were verified end to end by hand. A test-cluster suite belongs with the integration tests.
 - **Messages travel as JSON text**, not MessagePack as the plan intended. It keeps the browser shell free of a MessagePack dependency; revisit if bandwidth matters.
-- **The silo reads a mode's bundle once.** After editing `server.js`, restart the silo (or call `ModeRegistry.Reload`, which nothing exposes yet).
-- **A finished match cannot be re-read.** After completion the grain deactivates; a player who reconnects later gets nothing back.
-- **A player who never arrives leaves the others waiting.** There is no start timeout before the match begins.
-- **The Gateway references the whole module** for its contracts, which pulls ClearScript's native library into the Gateway image. Splitting the contracts into their own project would avoid that.
-- **Deploying mode packages** (how `dist/` gets onto a community silo) is not designed yet, and the community silo needs a container memory limit.
+- **The silo reads mode packages once, at start.** Updating a mode means a new image (or a new mounted folder) and a restart of `silo-community`. `ModeRegistry.Reload` exists but nothing calls it.
+- **Any signed-in player can get a ticket for any match id** (`GameHub.GetCommunityModeTicket`). Fine while match ids are random and only handed out by the client; the catalog / matchmaking milestone should issue tickets for matches it created.
+- **Finished match records are kept forever.** They are small (final state plus result), but a retention job will be needed eventually.
+- **More than one gateway** is designed for (each gateway writes only to its own connections) but not tested.
 
 ### Local environment notes
 

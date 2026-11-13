@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // Dev kit command line: dev, test, build.
+import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { bundleClient, bundleServer, loadMode } from './build.js';
@@ -73,6 +74,9 @@ try {
       await writeFile(path.join(outDir, name), content);
       console.log(`Wrote ${path.join(outDir, name)} (${Buffer.byteLength(content)} bytes).`);
     }
+    // The value a reviewer pins in modes/approved.json; the server refuses a bundle that does not match it.
+    const hash = createHash('sha256').update(outputs['server.bundle.js'], 'utf8').digest('hex');
+    console.log(`Server bundle sha256 for ${mode.manifest.id}@${mode.manifest.version}: ${hash}`);
   } else {
     console.log(USAGE);
     process.exit(1);
