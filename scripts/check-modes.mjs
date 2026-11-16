@@ -1,5 +1,5 @@
 // CI gate for every mode under modes/: runs the dev kit tests, builds the server bundle and prints its hash
-// (the value a maintainer pins in the server's approved.json), and refuses obviously hostile or unsupported code.
+// (the value a maintainer pins in the game server's approval list), and refuses obviously hostile or unsupported code.
 // Usage: node scripts/check-modes.mjs [mode-id ...]   (default: every folder in modes/)
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';

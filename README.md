@@ -59,3 +59,11 @@ Start by copying `modes/duel-lite`.
 - [Steps and sync](docs/steps-and-sync.md): how to keep clients consistent and bandwidth low.
 - [Prediction](docs/prediction.md): making fast-paced modes feel instant.
 - [Limits and testing](docs/limits.md): the sandbox rules and what `devkit test` checks.
+
+## How a mode goes live
+
+1. Open a pull request with one mode under `modes/<your-id>/`. CI runs `node scripts/check-modes.mjs`.
+2. A maintainer reads the code and plays the mode.
+3. Accepted modes are copied into a private release repository and pinned by hash in the game server. Merging here does **not** put a mode live, and an update only goes live after the same review.
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) first.
