@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "node devkit/cli.js dev",
-    "test": "node devkit/cli.js test duel-lite && node devkit/cli.js test stack-race",
+    "test": "node scripts/check-modes.mjs",
     "build": "node devkit/cli.js build"
   },
   "engines": {
