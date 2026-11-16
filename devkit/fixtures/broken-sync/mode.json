@@ -1,0 +1,12 @@
+{
+  "id": "broken-sync",
+  "name": "Fixture: broken-sync",
+  "version": "1.0.0",
+  "sdk": "0.1",
+  "players": { "min": 1, "max": 2 },
+  "tickRate": 0,
+  "server": "server.js",
+  "client": "client/index.html",
+  "clientModel": "client/model.js",
+  "fuzz": "tests/fuzz.js"
+}

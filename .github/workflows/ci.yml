@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Fork PRs get a read-only token and no secrets. Never switch this to pull_request_target.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      # Lockfile only, no install scripts: a PR can't run code at install time.
+      - run: npm ci --ignore-scripts
+      - name: Dev kit tests, build and policy checks for every mode
+        run: node scripts/check-modes.mjs

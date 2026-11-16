@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mode player</title>
+<style>
+  html, body { height: 100%; margin: 0; background: #14161c; }
+  iframe { display: block; width: 100%; height: 100%; border: 0; }
+  #overlay { position: fixed; inset: 0; display: none; place-items: center; padding: 16px; text-align: center; background: rgba(10, 12, 16, 0.82); color: #e8eaf0; font: 14px/1.4 system-ui, sans-serif; }
+  #overlay.show { display: grid; }
+</style>
+</head>
+<body>
+<iframe id="mode" title="Mode client"></iframe>
+<div id="overlay"></div>
+<script type="module">
+import { createShell } from '/shell/shell.js';
+import { localTransport } from '/shell/transport-local.js';
+
+const playerId = new URLSearchParams(location.search).get('player');
+const overlay = document.getElementById('overlay');
+const stats = { gaps: 0, syncs: 0, connected: false, aborted: false };
+
+function show(text) {
+  overlay.textContent = text;
+  overlay.classList.toggle('show', !!text);
+}
+
+const clientResponse = await fetch('/api/client');
+const modeHtml = await clientResponse.text();
+if (!clientResponse.ok) {
+  show(`Client build failed: ${modeHtml}`);
+  throw new Error(modeHtml);
+}
+
+function report() {
+  if (parent !== window) parent.postMessage({ bbDev: 'stat', playerId, lastSeq: shell.lastSeq, ...stats }, location.origin);
+}
+
+// `devkit dev` runs the match in the dev server; `devkit dev --remote` connects to the real gateway.
+async function createTransport() {
+  const info = await (await fetch('/api/info')).json();
+  if (!info.remote) return localTransport({ playerId });
+
+  await new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = '/vendor/signalr.js';
+    script.onload = resolve;
+    script.onerror = () => reject(new Error('Could not load the SignalR client. Run `npm install` in community/.'));
+    document.head.appendChild(script);
+  });
+  const { signalRTransport } = await import('/shell/transport-signalr.js');
+  return signalRTransport({ signalR: window.signalR, hubUrl: info.remote.hubUrl, ticket: info.remote.tickets[playerId] });
+}
+
+let transport;
+try {
+  transport = await createTransport();
+} catch (error) {
+  show(error.message);
+  throw error;
+}
+
+const shell = createShell({
+  frame: document.getElementById('mode'),
+  modeHtml,
+  transport,
+  onEvent(event, detail) {
+    if (event === 'blocked') { stats.aborted = true; show(`Mode blocked: ${detail.reason}`); }
+    if (event === 'gap') stats.gaps++;
+    if (event === 'sync') stats.syncs++;
+    if (event === 'open') { stats.connected = true; if (!stats.aborted) show(''); }
+    if (event === 'close') { stats.connected = false; if (!stats.aborted) show('Disconnected'); }
+    if (event === 'aborted') { stats.aborted = true; show(`Match aborted: ${detail.reason}`); }
+    report();
+  },
+});
+
+window.addEventListener('message', (event) => {
+  if (event.source !== parent || event.origin !== location.origin) return;
+  if (event.data?.bbDev === 'disconnect') shell.disconnect();
+  if (event.data?.bbDev === 'reconnect') shell.reconnect();
+});
+
+setInterval(report, 500);
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+# Replace @cs-gergely04 with the maintainer team once there is one.
+# Anything that changes what runs on the server or how modes are judged needs a maintainer.
+*                    @cs-gergely04
+/runtime/            @cs-gergely04
+/devkit/             @cs-gergely04
+/sdk/                @cs-gergely04
+/shell/              @cs-gergely04
+/scripts/            @cs-gergely04
+/.github/            @cs-gergely04

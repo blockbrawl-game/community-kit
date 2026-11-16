@@ -1,0 +1,9 @@
+* text=auto
+# Bundles are hashed at review and the server pins that hash; keep the bytes identical on every machine.
+*.js text eol=lf
+*.mjs text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.yml text eol=lf
+*.md text eol=lf

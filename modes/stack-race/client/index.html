@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Stack Race</title>
+<style>
+  :root { --bg: #14161c; --panel: #1e222b; --line: #2c323e; --text: #e8eaf0; --dim: #8b93a5; --mine: #4f9dff; --other: #ff8a4f; --ok: #5fd08a; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px; user-select: none; touch-action: manipulation; }
+  .top { display: flex; justify-content: space-between; width: min(100%, 300px); font-variant-numeric: tabular-nums; }
+  .top b { font-size: 20px; }
+  .top span { color: var(--dim); }
+  canvas { background: var(--panel); border-radius: 8px; }
+  #mine { width: min(100%, 210px); aspect-ratio: 6 / 12; }
+  .others { display: flex; gap: 8px; min-height: 20px; }
+  .other { text-align: center; color: var(--dim); font-size: 11px; }
+  .other canvas { width: 54px; height: 108px; display: block; }
+  .pad { display: flex; gap: 8px; }
+  .pad button { width: 64px; height: 44px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 18px; }
+  .pad button:active { background: var(--line); }
+  .hint { color: var(--dim); font-size: 12px; }
+  .result { position: fixed; inset: 0; background: rgba(10, 12, 16, 0.86); display: none; place-items: center; text-align: center; }
+  .result.show { display: grid; }
+  .result h1 { margin: 0 0 6px; font-size: 28px; }
+</style>
+</head>
+<body>
+  <div class="top"><div><span>Score</span> <b id="score">0</b></div><div><span>Time</span> <b id="time">90</b></div></div>
+  <canvas id="mine" width="210" height="420"></canvas>
+  <div class="pad">
+    <button id="left" aria-label="Move left">◀</button>
+    <button id="drop" aria-label="Drop">▼</button>
+    <button id="right" aria-label="Move right">▶</button>
+  </div>
+  <div class="hint">Arrow keys to move, Space to drop</div>
+  <div class="others" id="others"></div>
+  <div class="result" id="result"><div><h1 id="resultTitle"></h1><div id="resultText"></div></div></div>
+
+<script type="module">
+import { connect } from '@blockbrawl/mode-sdk/client';
+import { createModel } from './model.js';
+import { H, W, canMove, dropY } from '../shared.js';
+
+const model = createModel();
+const s = model.state;
+const $ = (id) => document.getElementById(id);
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const otherCanvases = new Map();
+
+const game = connect({
+  model,
+  onResult(result) {
+    const first = result.ranking[0];
+    const winners = Array.isArray(first) ? first : [first];
+    const solo = s.order.length === 1;
+    $('resultTitle').textContent = solo ? 'Time!' : winners.length > 1 ? 'Draw' : winners.includes(game.me) ? 'You win' : 'You lose';
+    $('resultText').textContent = s.order.map((id, p) => `${name(p)}: ${s.players[p].score}`).join('   ');
+    $('result').classList.add('show');
+  },
+});
+
+function name(p) {
+  if (p === s.me) return 'You';
+  return game.players.find((pl) => pl.id === s.order[p])?.name ?? `Player ${p + 1}`;
+}
+
+// Prediction: apply the action locally the moment it is sent. The model replays unconfirmed
+// actions on top of the server state, and drops them again if the server rejects them.
+function act(action) {
+  const mine = s.players[s.me];
+  const piece = model.predictedPiece();
+  if (!game.ready || s.over || !mine || !piece) return;
+  if (action.t === 'move' && !canMove(mine.board, piece, action.dx)) return;
+  model.predict(game.send(action), action);
+}
+
+addEventListener('keydown', (event) => {
+  if (event.repeat && event.code === 'Space') return;
+  if (event.code === 'ArrowLeft') act({ t: 'move', dx: -1 });
+  else if (event.code === 'ArrowRight') act({ t: 'move', dx: 1 });
+  else if (event.code === 'Space' || event.code === 'ArrowDown') act({ t: 'drop' });
+  else return;
+  event.preventDefault();
+});
+$('left').addEventListener('pointerdown', () => act({ t: 'move', dx: -1 }));
+$('right').addEventListener('pointerdown', () => act({ t: 'move', dx: 1 }));
+$('drop').addEventListener('pointerdown', () => act({ t: 'drop' }));
+
+function drawBoard(canvas, player, piece, color, withGhost) {
+  const ctx = canvas.getContext('2d');
+  const cw = canvas.width / W;
+  const ch = canvas.height / H;
+  const gap = Math.max(1, cw * 0.06);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const cell = (x, y, fill) => {
+    ctx.fillStyle = fill;
+    ctx.fillRect(x * cw + gap, y * ch + gap, cw - gap * 2, ch - gap * 2);
+  };
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (player.board[y] & (1 << x)) cell(x, y, css('--dim'));
+    }
+  }
+  if (piece) {
+    if (withGhost) {
+      const gy = dropY(player.board, piece);
+      ctx.globalAlpha = 0.25;
+      for (let i = 0; i < piece.w; i++) cell(piece.x + i, gy, color);
+      ctx.globalAlpha = 1;
+    }
+    for (let i = 0; i < piece.w; i++) cell(piece.x + i, piece.y, color);
+  }
+  if (player.out) {
+    ctx.fillStyle = 'rgba(10, 12, 16, 0.6)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+}
+
+function frame() {
+  requestAnimationFrame(frame);
+  if (!game.ready) return;
+  const mine = s.players[s.me];
+  if (mine) {
+    drawBoard($('mine'), mine, model.predictedPiece(), css('--mine'), true);
+    $('score').textContent = mine.score;
+  }
+  $('time').textContent = Math.max(0, Math.ceil((s.endsAt - game.timeMs()) / 1000));
+
+  s.players.forEach((player, p) => {
+    if (p === s.me) return;
+    let entry = otherCanvases.get(p);
+    if (!entry) {
+      const wrap = document.createElement('div');
+      wrap.className = 'other';
+      const canvas = document.createElement('canvas');
+      canvas.width = 54;
+      canvas.height = 108;
+      const label = document.createElement('div');
+      wrap.append(canvas, label);
+      $('others').appendChild(wrap);
+      entry = { canvas, label };
+      otherCanvases.set(p, entry);
+    }
+    drawBoard(entry.canvas, player, player.piece, css('--other'), false);
+    entry.label.textContent = `${name(p)} · ${player.score}`;
+  });
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "id": "duel-lite",
+  "name": "Duel Lite",
+  "version": "1.0.0",
+  "sdk": "0.1",
+  "author": "BlockBrawl",
+  "description": "Turn-based block placement on a shared board. Reference mode for steps, private hands and sync.",
+  "players": { "min": 2, "max": 2 },
+  "tickRate": 2,
+  "orientation": "portrait",
+  "server": "server.js",
+  "client": "client/index.html",
+  "clientModel": "client/model.js",
+  "fuzz": "tests/fuzz.js"
+}

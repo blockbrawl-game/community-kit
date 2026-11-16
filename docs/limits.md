@@ -1,0 +1,51 @@
+# Limits and testing
+
+## The server sandbox
+
+Server logic runs in a V8 isolate with nothing but the JavaScript language:
+
+- No network, files, timers, `eval` or `new Function`.
+- No typed arrays, `ArrayBuffer`, `DataView` or WebAssembly. Use plain arrays; state is JSON anyway.
+- `Math.random()` and `Date` are deterministic: a seeded generator and the match clock.
+- Given the same seed and the same inputs, a mode must produce exactly the same steps.
+
+## The client sandbox
+
+The client runs in a sandboxed frame with an opaque origin and a content security policy that blocks all network access. It can only exchange messages with the host shell. Scripts, styles and assets must be part of the mode package; the build turns them into one self-contained document.
+
+## Numbers
+
+Defined in [`runtime/limits.json`](../runtime/limits.json).
+
+| Limit | Value | What happens when exceeded |
+| --- | --- | --- |
+| Tick rate | 30 per second | mode.json is rejected |
+| Time per call | 250 ms watchdog | match is aborted |
+| Time per call, p99 | 5 ms | warning in `devkit test` |
+| State size | 256 KB | match is aborted |
+| Steps per call | 256 | match is aborted |
+| Step batch size | 16 KB | match is aborted |
+| Action size | 4 KB | action is rejected |
+| Server bundle | 256 KB | fails `devkit test` |
+| Built client | 5 MB | fails `devkit test` |
+
+The 250 ms watchdog exists to stop infinite loops. It is not a performance target: a healthy mode answers in well under a millisecond.
+
+## What `devkit test` checks
+
+| Check | What it proves |
+| --- | --- |
+| build | The mode bundles and fits the size budgets |
+| fuzz | Random matches, including garbage actions, never make the mode throw; a rejected action leaves state untouched |
+| sync | A client that joins through `sync()` equals one that saw every step |
+| determinism | Replaying the recorded inputs gives identical output |
+| hydration | The same replay still matches when the match is moved to a fresh sandbox, so nothing lives outside `state` |
+| budgets | Call time, state size, batch size and bytes per second per player |
+
+A failure prints the seed to reproduce it:
+
+```bash
+node devkit/cli.js test my-mode --seed 7 --runs 1
+```
+
+Two deliberately broken modes in `devkit/fixtures/` show what failures look like: `broken-sync` and `broken-hidden-state`.

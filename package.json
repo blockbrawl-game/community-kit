@@ -1,0 +1,22 @@
+{
+  "name": "blockbrawl-community",
+  "private": true,
+  "version": "0.1.0",
+  "description": "SDK, dev kit and reference modes for BlockBrawl community game modes.",
+  "type": "module",
+  "bin": {
+    "devkit": "devkit/cli.js"
+  },
+  "scripts": {
+    "dev": "node devkit/cli.js dev",
+    "test": "node scripts/check-modes.mjs",
+    "build": "node devkit/cli.js build"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@microsoft/signalr": "^8.0.29",
+    "esbuild": "^0.25.0"
+  }
+}

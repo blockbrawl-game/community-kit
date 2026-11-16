@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Duel Lite</title>
+<style>
+  :root { --bg: #14161c; --panel: #1e222b; --line: #2c323e; --text: #e8eaf0; --dim: #8b93a5; --p1: #4f9dff; --p2: #ff8a4f; --ok: #5fd08a; --bad: #ff5f6d; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 12px; user-select: none; }
+  .scores { display: flex; gap: 8px; width: min(100%, 360px); }
+  .score { flex: 1; background: var(--panel); border: 2px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  .score.active { border-color: var(--ok); }
+  .score .name { color: var(--dim); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .score .value { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .score .cards { color: var(--dim); font-size: 11px; }
+  .status { min-height: 20px; color: var(--dim); text-align: center; }
+  .status.mine { color: var(--ok); font-weight: 600; }
+  .board { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; width: min(100%, 360px); aspect-ratio: 1; background: var(--line); padding: 2px; border-radius: 8px; touch-action: none; }
+  .cell { background: var(--panel); border-radius: 3px; }
+  .cell.o1 { background: var(--p1); }
+  .cell.o2 { background: var(--p2); }
+  .cell.ghost { background: color-mix(in srgb, var(--ok) 55%, var(--panel)); }
+  .cell.ghost.bad { background: color-mix(in srgb, var(--bad) 55%, var(--panel)); }
+  .cell.flash { animation: flash 0.4s ease-out; }
+  @keyframes flash { from { background: #fff; } }
+  .hand { display: flex; gap: 10px; min-height: 76px; }
+  .piece { background: var(--panel); border: 2px solid var(--line); border-radius: 8px; padding: 8px; width: 76px; height: 76px; display: grid; place-items: center; cursor: pointer; }
+  .piece.selected { border-color: var(--ok); }
+  .piece.disabled { opacity: 0.4; cursor: default; }
+  .mini { display: grid; gap: 2px; }
+  .mini i { width: 14px; height: 14px; border-radius: 2px; background: var(--dim); }
+  .mini i.off { background: transparent; }
+  .result { position: fixed; inset: 0; background: rgba(10, 12, 16, 0.86); display: none; place-items: center; text-align: center; }
+  .result.show { display: grid; }
+  .result h1 { margin: 0 0 6px; font-size: 28px; }
+</style>
+</head>
+<body>
+  <div class="scores" id="scores"></div>
+  <div class="status" id="status">Connecting…</div>
+  <div class="board" id="board"></div>
+  <div class="hand" id="hand"></div>
+  <div class="result" id="result"><div><h1 id="resultTitle"></h1><div id="resultText"></div></div></div>
+
+<script type="module">
+import { connect } from '@blockbrawl/mode-sdk/client';
+import { createModel } from './model.js';
+import { PIECES, SIZE, canPlace } from '../shared.js';
+
+const model = createModel();
+const m = model.state;
+const $ = (id) => document.getElementById(id);
+const cells = [];
+let selected = 0;
+let hover = null;
+let notice = '';
+
+for (let i = 0; i < SIZE * SIZE; i++) {
+  const cell = document.createElement('div');
+  cell.className = 'cell';
+  cell.dataset.i = i;
+  $('board').appendChild(cell);
+  cells.push(cell);
+}
+
+const game = connect({
+  model,
+  onChange(batch) {
+    for (const step of batch.steps) {
+      if (step.t === 'place') flash(step);
+      if (step.t === 'skip') notice = `${name(step.p)} has no move and is skipped.`;
+      if (step.t === 'timeout') notice = `${name(step.p)} ran out of time.`;
+      if (step.t === 'turn') notice = '';
+    }
+    if (selected >= m.hand.length) selected = 0;
+    render();
+  },
+  onRejected(actionId, reason) {
+    notice = `Not allowed: ${reason}`;
+    render();
+  },
+  onResult(result) {
+    const first = result.ranking[0];
+    const winners = Array.isArray(first) ? first : [first];
+    const mine = winners.includes(game.me);
+    $('resultTitle').textContent = winners.length > 1 ? 'Draw' : mine ? 'You win' : 'You lose';
+    $('resultText').textContent = m.order.map((id, p) => `${name(p)}: ${m.scores[p]}`).join('   ');
+    $('result').classList.add('show');
+  },
+});
+
+function name(p) {
+  if (p === m.me) return 'You';
+  return game.players.find((pl) => pl.id === m.order[p])?.name ?? `Player ${p + 1}`;
+}
+
+function myTurn() {
+  return !m.over && m.turn === m.me;
+}
+
+function flash(step) {
+  const hit = new Set();
+  for (const r of step.rows) for (let c = 0; c < SIZE; c++) hit.add(r * SIZE + c);
+  for (const c of step.cols) for (let r = 0; r < SIZE; r++) hit.add(r * SIZE + c);
+  for (const i of hit) {
+    cells[i].classList.remove('flash');
+    void cells[i].offsetWidth;
+    cells[i].classList.add('flash');
+  }
+}
+
+function render() {
+  if (!game.ready) return;
+
+  $('scores').innerHTML = '';
+  m.order.forEach((id, p) => {
+    const el = document.createElement('div');
+    el.className = 'score' + (m.turn === p && !m.over ? ' active' : '');
+    el.style.borderBottomColor = p === 0 ? 'var(--p1)' : 'var(--p2)';
+    el.innerHTML = `<div class="name"></div><div class="value">${m.scores[p]}</div><div class="cards">${m.handCounts[p]} pieces · round ${m.round}</div>`;
+    el.querySelector('.name').textContent = name(p) + (m.forfeited[p] ? ' (left)' : '');
+    $('scores').appendChild(el);
+  });
+
+  const ghost = new Map();
+  if (myTurn() && hover && m.hand[selected]) {
+    const ok = canPlace(m.board, m.hand[selected], hover.x, hover.y);
+    for (const [dx, dy] of PIECES[m.hand[selected]]) {
+      const x = hover.x + dx;
+      const y = hover.y + dy;
+      if (x >= 0 && y >= 0 && x < SIZE && y < SIZE) ghost.set(y * SIZE + x, ok);
+    }
+  }
+  cells.forEach((cell, i) => {
+    const owner = m.board[i];
+    const flashing = cell.classList.contains('flash');
+    cell.className = 'cell' + (owner ? ` o${owner}` : '') + (flashing ? ' flash' : '');
+    if (ghost.has(i) && !owner) cell.classList.add('ghost');
+    if (ghost.has(i) && !ghost.get(i)) cell.classList.add('ghost', 'bad');
+  });
+
+  $('hand').innerHTML = '';
+  m.hand.forEach((pieceId, i) => {
+    const el = document.createElement('div');
+    el.className = 'piece' + (i === selected ? ' selected' : '') + (myTurn() ? '' : ' disabled');
+    const shape = PIECES[pieceId];
+    const w = Math.max(...shape.map((c) => c[0])) + 1;
+    const h = Math.max(...shape.map((c) => c[1])) + 1;
+    const mini = document.createElement('div');
+    mini.className = 'mini';
+    mini.style.gridTemplateColumns = `repeat(${w}, 14px)`;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const dot = document.createElement('i');
+        if (!shape.some((c) => c[0] === x && c[1] === y)) dot.className = 'off';
+        mini.appendChild(dot);
+      }
+    }
+    el.appendChild(mini);
+    el.addEventListener('pointerdown', () => { selected = i; render(); });
+    $('hand').appendChild(el);
+  });
+
+  renderStatus();
+}
+
+function renderStatus() {
+  if (!game.ready) return;
+  const status = $('status');
+  status.classList.toggle('mine', myTurn());
+  if (m.over) { status.textContent = 'Match over'; return; }
+  const left = Math.max(0, Math.ceil((m.deadline - game.timeMs()) / 1000));
+  const who = myTurn() ? 'Your turn' : `${name(m.turn)}'s turn`;
+  status.textContent = notice ? `${notice}  ${who} · ${left}s` : `${who} · ${left}s`;
+}
+
+function cellAt(event) {
+  const el = document.elementFromPoint(event.clientX, event.clientY);
+  if (!el || el.dataset.i === undefined) return null;
+  const i = Number(el.dataset.i);
+  return { x: i % SIZE, y: Math.floor(i / SIZE) };
+}
+
+$('board').addEventListener('pointermove', (event) => { hover = cellAt(event); render(); });
+$('board').addEventListener('pointerleave', () => { hover = null; render(); });
+$('board').addEventListener('pointerup', (event) => {
+  const at = cellAt(event);
+  if (!at || !myTurn() || !m.hand[selected]) return;
+  // No prediction here: a turn-based mode can simply wait for the server's 'place' step.
+  if (canPlace(m.board, m.hand[selected], at.x, at.y)) game.send({ t: 'place', i: selected, x: at.x, y: at.y });
+});
+
+setInterval(renderStatus, 250);
+</script>
+</body>
+</html>
