@@ -1,6 +1,6 @@
 {
   "name": "@blockbrawl-game/community-kit",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "SDK and dev kit for BlockBrawl community game modes: mode SDK, dev kit (build, test, dev server), sandbox runtime prelude and play-page shell, with example modes.",
   "license": "MIT",
   "type": "module",
@@ -31,7 +31,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@microsoft/signalr": "^8.0.29",
+    "@microsoft/signalr": "^11.0.0",
     "esbuild": "^0.28.2"
   }
 }
