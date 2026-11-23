@@ -20,7 +20,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/blockbrawl-game/community-modes.git"
+    "url": "https://github.com/blockbrawl-game/community-kit.git"
   },
   "scripts": {
     "test": "node scripts/check-modes.mjs",
