@@ -1,7 +1,7 @@
 name: Release
 
-# A release is a git tag vX.Y.Z and a GitHub release with notes and the packed kit. Games install a tag with
-# `npm install --save-exact github:blockbrawl-game/community-modes#vX.Y.Z`; there is no npm registry package.
+# A release is a git tag vX.Y.Z and a GitHub release with notes and the packed kit. Games install the attached file,
+# .../releases/download/vX.Y.Z/blockbrawl-game-community-kit-X.Y.Z.tgz; there is no npm registry package.
 #
 # Bump "version" in package.json and npm-shrinkwrap.json first. Then either run this workflow from the Actions tab
 # (it creates the tag on the commit it runs on) or push the tag yourself.

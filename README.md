@@ -35,12 +35,16 @@ node devkit/cli.js build duel-lite   # writes modes/duel-lite/dist and prints th
 
 ## Using the kit from your own folder
 
-Every release is a git tag (`vX.Y.Z`) with a GitHub release. Install a tag straight from GitHub; there is no npm
-registry package and no token is needed:
+Every release is a git tag (`vX.Y.Z`) with a GitHub release that has the packed kit attached. There is no npm
+registry package and no token is needed. Install the release file; npm pins its integrity hash in your lockfile,
+and it needs neither git nor an SSH key, so it also works in container builds:
 
 ```bash
-npm install --save-exact github:blockbrawl-game/community-modes#v0.4.0
+npm install --save-exact https://github.com/blockbrawl-game/community-modes/releases/download/v0.4.0/blockbrawl-game-community-kit-0.4.0.tgz
 ```
+
+(`npm install github:blockbrawl-game/community-modes#v0.4.0` works too, but records a `git+ssh` URL that needs git
+and GitHub SSH access on every machine that runs `npm ci`.)
 
 Keep your modes in `modes/<mode-id>/` next to your `package.json` and run `npx brawl-modes dev|test|build <mode-id>`.
 A mode id is looked up in your `./modes` first, then in this kit's examples.
