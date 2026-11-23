@@ -26,6 +26,25 @@ const MODE_CSP = [
  * @param {(event: string, detail?: object) => void} [options.onEvent] 'sync' | 'gap' | 'result' | 'aborted' | 'exit' | 'open' | 'close' | 'blocked'
  */
 export function createShell({ frame, modeHtml, transport, onEvent = () => {} }) {
+  return createFrame({ frame, modeHtml, transport, onEvent });
+}
+
+/**
+ * Hosts an offline mode: the same sandboxed frame, but no server behind it. The mode gets one sync
+ * that tells it who is playing, and reports its own result. That result is the mode's word only,
+ * so the host must not treat it as verified.
+ *
+ * @param {object} options
+ * @param {HTMLIFrameElement} options.frame
+ * @param {string} options.modeHtml
+ * @param {{ modeId: string, version: string, you: string, players: { id: string, name: string, isBot: boolean }[] }} options.info
+ * @param {(event: string, detail?: object) => void} [options.onEvent] 'sync' | 'result' | 'exit' | 'blocked'
+ */
+export function createOfflineShell({ frame, modeHtml, info, onEvent = () => {} }) {
+  return createFrame({ frame, modeHtml, offlineInfo: info, onEvent });
+}
+
+function createFrame({ frame, modeHtml, transport = null, offlineInfo = null, onEvent }) {
   let lastSeq = -1;
   let awaitingSync = true;
   let frameReady = false;
@@ -60,6 +79,13 @@ export function createShell({ frame, modeHtml, transport, onEvent = () => {} }) 
     if (connected) transport.send({ kind: 'sync' });
   }
 
+  // What crosses out of the sandbox is cut down to one plain number, so the host never handles an
+  // object the mode shaped.
+  function sanitizeResult(result) {
+    const score = Number(result?.score);
+    return { score: Number.isFinite(score) ? Math.max(0, Math.min(1e12, Math.floor(score))) : 0 };
+  }
+
   window.addEventListener('message', (event) => {
     if (blocked || event.source !== frame.contentWindow) return;
     const msg = event.data;
@@ -67,14 +93,32 @@ export function createShell({ frame, modeHtml, transport, onEvent = () => {} }) 
 
     if (msg.bb === 'ready') {
       frameReady = true;
-      requestSync();
+      if (offlineInfo) {
+        lastSeq = 0;
+        toMode({ kind: 'sync', seq: 0, timeMs: 0, steps: [], info: offlineInfo });
+        onEvent('sync', { seq: 0 });
+      } else {
+        requestSync();
+      }
     } else if (msg.bb === 'action') {
-      if (typeof msg.actionId !== 'string' || msg.actionId.length > 32) return;
+      if (offlineInfo || typeof msg.actionId !== 'string' || msg.actionId.length > 32) return;
       if (connected) transport.send({ kind: 'action', actionId: msg.actionId, action: msg.action });
+    } else if (msg.bb === 'result') {
+      // Only an offline mode decides its own result; an online mode's result comes from the server.
+      if (offlineInfo) onEvent('result', sanitizeResult(msg.result));
     } else if (msg.bb === 'exit') {
       onEvent('exit');
     }
   });
+
+  if (offlineInfo) {
+    return {
+      get lastSeq() { return lastSeq; },
+      get connected() { return true; },
+      disconnect() {},
+      reconnect() {},
+    };
+  }
 
   transport.onOpen = () => {
     connected = true;

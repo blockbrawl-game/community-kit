@@ -39,10 +39,13 @@ for (const id of ids) {
   if (manifest.id !== id) fail(id, `mode.json id "${manifest.id}" must equal the folder name`);
   if (!/^\d+\.\d+\.\d+$/.test(manifest.version ?? '')) fail(id, 'version must be x.y.z');
 
-  // Forbidden APIs apply to the mode's own sources, not to tests.
+  // Forbidden APIs apply to the mode's own sources, not to tests. Math.random only breaks replays of a server match,
+  // so an offline mode (client only, nothing replayed) may use it.
+  const offline = manifest.runtime === 'offline';
   for (const file of textFiles(dir).filter((f) => !f.includes('/tests/'))) {
     const text = readFileSync(file, 'utf8');
     for (const [re, what] of forbidden) {
+      if (offline && what.startsWith('Math.random')) continue;
       if (re.test(text)) fail(id, `${file.slice(root.length + 1)} uses ${what}`);
     }
   }

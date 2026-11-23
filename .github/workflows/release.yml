@@ -1,0 +1,75 @@
+name: Release
+
+# A release is a git tag vX.Y.Z and a GitHub release with notes and the packed kit. Games install the attached file,
+# .../releases/download/vX.Y.Z/blockbrawl-game-community-kit-X.Y.Z.tgz; there is no npm registry package.
+#
+# Bump "version" in package.json and npm-shrinkwrap.json first. Then either run this workflow from the Actions tab
+# (it creates the tag on the commit it runs on) or push the tag yourself.
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Version
+        id: version
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').version")
+          sw=$(node -p "require('./npm-shrinkwrap.json').version")
+          if [ "$v" != "$sw" ]; then echo "package.json is $v but npm-shrinkwrap.json is $sw"; exit 1; fi
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF_NAME" != "v$v" ]; then
+            echo "tag $GITHUB_REF_NAME does not match package.json version $v"; exit 1
+          fi
+          echo "tag=v$v" >> "$GITHUB_OUTPUT"
+
+      - name: The tag is new, or already on this commit
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha 2>/dev/null || true)
+          if [ -n "$sha" ] && [ "$sha" != "$GITHUB_SHA" ]; then
+            echo "$TAG already exists on $sha, not on $GITHUB_SHA. Bump the version."; exit 1
+          fi
+
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+      - name: Every mode passes
+        run: node scripts/check-modes.mjs
+
+      - name: Pack the kit
+        id: pack
+        # The checks above leave build output in modes/*/dist; the package ships sources only.
+        run: |
+          rm -rf modes/*/dist
+          echo "file=$(npm pack --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          FILE: ${{ steps.pack.outputs.file }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            # A release made by hand on GitHub: add the packed kit to it.
+            gh release upload "$TAG" "$FILE" --clobber
+          else
+            gh release create "$TAG" "$FILE" --target "$GITHUB_SHA" --title "$TAG" --generate-notes
+          fi

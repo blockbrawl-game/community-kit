@@ -7,6 +7,10 @@ import http from 'node:http';
 import path from 'node:path';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { bundleClient, bundleServer, communityRoot, loadMode } from './build.js';
+import { createRequire } from 'node:module';
+
+// npm may install the kit's dependencies next to it rather than inside it.
+const requireFromKit = createRequire(import.meta.url);
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -81,7 +85,7 @@ export async function startRemoteDevServer({ modeName, port = 5173, playerCount,
     }
 
     if (route === '/vendor/signalr.js') {
-      return serveFile(res, path.join(communityRoot, 'node_modules', '@microsoft', 'signalr', 'dist', 'browser', 'signalr.min.js'));
+      return serveFile(res, requireFromKit.resolve('@microsoft/signalr/dist/browser/signalr.min.js'));
     }
 
     if (route === '/api/client') {

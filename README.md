@@ -1,6 +1,6 @@
-# BlockBrawl community modes
+# BlockBrawl community modes SDK
 
-SDK, dev kit and reference modes for writing custom BlockBrawl game modes in HTML5/JS.
+SDK, dev kit and example modes for writing custom BlockBrawl game modes in HTML5/JS. MIT licensed.
 
 A mode has two halves:
 
@@ -14,7 +14,7 @@ The two halves talk through **steps**: small JSON facts the server emits and the
 Requires Node 20 or newer.
 
 ```bash
-npm install
+npm ci
 ```
 
 ```bash
@@ -27,6 +27,28 @@ Open the printed dashboard URL. It shows every player side by side, with latency
 node devkit/cli.js test duel-lite
 ```
 
+```bash
+node devkit/cli.js build duel-lite   # writes modes/duel-lite/dist and prints the hashes a reviewer pins
+```
+
+`--json` on `build` and `test` prints the result as one JSON object, for tools and build servers.
+
+## Using the kit from your own folder
+
+Every release is a git tag (`vX.Y.Z`) with a GitHub release that has the packed kit attached. There is no npm
+registry package and no token is needed. Install the release file; npm pins its integrity hash in your lockfile,
+and it needs neither git nor an SSH key, so it also works in container builds:
+
+```bash
+npm install --save-exact https://github.com/blockbrawl-game/community-modes/releases/download/v0.4.0/blockbrawl-game-community-kit-0.4.0.tgz
+```
+
+(`npm install github:blockbrawl-game/community-modes#v0.4.0` works too, but records a `git+ssh` URL that needs git
+and GitHub SSH access on every machine that runs `npm ci`.)
+
+Keep your modes in `modes/<mode-id>/` next to your `package.json` and run `npx brawl-modes dev|test|build <mode-id>`.
+A mode id is looked up in your `./modes` first, then in this kit's examples.
+
 ## Layout
 
 | Folder | What it is |
@@ -37,6 +59,11 @@ node devkit/cli.js test duel-lite
 | `devkit/` | The `dev`, `test` and `build` commands |
 | `modes/duel-lite/` | Turn-based reference mode: steps, private hands, sync |
 | `modes/stack-race/` | Real-time reference mode: ticking and client prediction |
+| `modes/tap-rush/` | Offline reference mode: no server, the whole game is the client |
+| `modes/tile-frenzy/` | Showcase, load test: 1-8 players at 30 ticks a second grabbing tiles on a shared board |
+| `modes/trail-clash/` | Showcase, real time: 1-4 light trails at 20 ticks a second, queued turns, a shrinking arena |
+| `modes/bloom-blocks/` | Showcase, visuals: turn-based placement puzzle for 1-2 players with drag and drop and particle effects |
+| `scripts/check-modes.mjs` | The CI gate: tests, builds and policy checks for every mode |
 | `docs/` | Guides |
 
 ## A mode package
@@ -64,6 +91,18 @@ Start by copying `modes/duel-lite`.
 
 1. Open a pull request with one mode under `modes/<your-id>/`. CI runs `node scripts/check-modes.mjs`.
 2. A maintainer reads the code and plays the mode.
-3. Accepted modes are copied into a private release repository and pinned by hash in the game server. Merging here does **not** put a mode live, and an update only goes live after the same review.
+3. The game server pins each accepted mode by the hash of its build. Merging here does **not** put a mode live, and an update only goes live after the same review.
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) first.
+
+## Releases
+
+The game server embeds `runtime/` and `shell/`, and a mode's approved hash depends on the kit version that built
+it, so the game pins one exact release. A release bumps `version` in `package.json` and `npm-shrinkwrap.json`, and
+then the Release workflow (run it from the Actions tab, or push the tag `v<version>`) checks every mode, creates
+the tag and a GitHub release with notes and the packed kit attached.
+
+## License
+
+[MIT](LICENSE).
+
