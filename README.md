@@ -40,10 +40,10 @@ registry package and no token is needed. Install the release file; npm pins its 
 and it needs neither git nor an SSH key, so it also works in container builds:
 
 ```bash
-npm install --save-exact https://github.com/blockbrawl-game/community-kit/releases/download/v0.4.1/blockbrawl-game-community-kit-0.4.1.tgz
+npm install --save-exact https://github.com/blockbrawl-game/community-kit/releases/download/v0.4.2/blockbrawl-game-community-kit-0.4.2.tgz
 ```
 
-(`npm install github:blockbrawl-game/community-kit#v0.4.1` works too, but records a `git+ssh` URL that needs git
+(`npm install github:blockbrawl-game/community-kit#v0.4.2` works too, but records a `git+ssh` URL that needs git
 and GitHub SSH access on every machine that runs `npm ci`.)
 
 Keep your modes in `modes/<mode-id>/` next to your `package.json` and run `npx brawl-modes dev|test|build <mode-id>`.
