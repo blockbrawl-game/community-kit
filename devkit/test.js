@@ -16,7 +16,7 @@ import { MatchHost, devPlayers } from './match.js';
 const MAX_ITERATIONS = 4000;
 const GARBAGE = [null, 42, 'x', [], {}, { t: 'nope' }, { t: 'place' }, { t: 'move', dx: 99 }, { t: 'place', i: -1, x: 1e9, y: 'a' }, { t: 'x'.repeat(8000) }];
 
-function makeRng(seed) {
+export function makeRng(seed) {
   let s = seed | 0;
   const next = () => {
     s = (s + 0x6d2b79f5) | 0;
@@ -54,9 +54,9 @@ function firstDiff(a, b, at = '$') {
   return null;
 }
 
-class TestFailure extends Error {}
+export class TestFailure extends Error {}
 
-function fuzzRun({ mode, bundle, createModel, nextAction, seed, playerCount }) {
+export function fuzzRun({ mode, bundle, createModel, nextAction, seed, playerCount }) {
   const { manifest } = mode;
   const rng = makeRng(seed ^ 0x9e3779b9);
   const players = devPlayers(playerCount);

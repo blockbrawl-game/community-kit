@@ -9,6 +9,8 @@ const USAGE = `Usage:
   devkit dev <mode> --remote [--gateway http://localhost:5121] [--players N] [--port 5173]
   devkit test <mode> [--runs 20] [--seed N] [--record file.json] [--json]
   devkit build <mode> [--out dir] [--json]
+  devkit bench <mode> [--runs 10] [--seed N] [--json]
+  devkit check <mode> [--json]
 
 <mode> is a mode id under community/modes, or a path to a mode folder.
 A mode with "runtime": "offline" in mode.json has no server: dev serves only its client, test checks only its build.
@@ -90,6 +92,23 @@ try {
       runs: intFlag(flags.runs, 'runs'),
       seed: intFlag(flags.seed, 'seed'),
       recordFile: typeof flags.record === 'string' ? flags.record : undefined,
+      report,
+    });
+    if (json) printResult(JSON.stringify(report));
+    process.exit(passed ? 0 : 1);
+  } else if (command === 'check') {
+    const { runCheck } = await import('./check.js');
+    const report = {};
+    const passed = await runCheck({ modeName, report });
+    if (json) printResult(JSON.stringify(report));
+    process.exit(passed ? 0 : 1);
+  } else if (command === 'bench') {
+    const { runBench } = await import('./bench.js');
+    const report = {};
+    const passed = await runBench({
+      modeName,
+      runs: intFlag(flags.runs, 'runs'),
+      seed: intFlag(flags.seed, 'seed'),
       report,
     });
     if (json) printResult(JSON.stringify(report));

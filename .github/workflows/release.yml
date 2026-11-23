@@ -54,7 +54,7 @@ jobs:
 
       - run: npm ci --no-audit --no-fund --ignore-scripts
       - name: Every mode passes
-        run: node scripts/check-modes.mjs
+        run: node --test "tests/**/*.test.mjs" && node scripts/check-modes.mjs --baseline
 
       - name: Pack the kit
         id: pack

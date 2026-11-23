@@ -28,6 +28,14 @@ node devkit/cli.js test duel-lite
 ```
 
 ```bash
+node devkit/cli.js bench duel-lite   # server cost in work units: the same on every machine
+```
+
+```bash
+node devkit/cli.js check duel-lite   # everything review checks, with one verdict: run this before submitting
+```
+
+```bash
 node devkit/cli.js build duel-lite   # writes modes/duel-lite/dist and prints the hashes a reviewer pins
 ```
 
@@ -40,10 +48,10 @@ registry package and no token is needed. Install the release file; npm pins its 
 and it needs neither git nor an SSH key, so it also works in container builds:
 
 ```bash
-npm install --save-exact https://github.com/blockbrawl-game/community-kit/releases/download/v0.4.2/blockbrawl-game-community-kit-0.4.2.tgz
+npm install --save-exact https://github.com/blockbrawl-game/community-kit/releases/download/v0.5.0/blockbrawl-game-community-kit-0.5.0.tgz
 ```
 
-(`npm install github:blockbrawl-game/community-kit#v0.4.2` works too, but records a `git+ssh` URL that needs git
+(`npm install github:blockbrawl-game/community-kit#v0.5.0` works too, but records a `git+ssh` URL that needs git
 and GitHub SSH access on every machine that runs `npm ci`.)
 
 Keep your modes in `modes/<mode-id>/` next to your `package.json` and run `npx brawl-modes dev|test|build <mode-id>`.
@@ -63,7 +71,7 @@ A mode id is looked up in your `./modes` first, then in this kit's examples.
 | `modes/tile-frenzy/` | Showcase, load test: 1-8 players at 30 ticks a second grabbing tiles on a shared board |
 | `modes/trail-clash/` | Showcase, real time: 1-4 light trails at 20 ticks a second, queued turns, a shrinking arena |
 | `modes/bloom-blocks/` | Showcase, visuals: turn-based placement puzzle for 1-2 players with drag and drop and particle effects |
-| `scripts/check-modes.mjs` | The CI gate: tests, builds and policy checks for every mode |
+| `scripts/check-modes.mjs` | The CI gate: `check` on every mode, and bench numbers equal to `scripts/bench-baseline.json` |
 | `docs/` | Guides |
 
 ## A mode package
@@ -86,10 +94,12 @@ Start by copying `modes/duel-lite`.
 - [Steps and sync](docs/steps-and-sync.md): how to keep clients consistent and bandwidth low.
 - [Prediction](docs/prediction.md): making fast-paced modes feel instant.
 - [Limits and testing](docs/limits.md): the sandbox rules and what `devkit test` checks.
+- [Benchmark](docs/benchmark.md): work units, the server's two performance gates, and how to get under them.
+- [Roadmap](docs/roadmap.md): what is coming for mode developers, in order.
 
 ## How a mode goes live
 
-1. Open a pull request with one mode under `modes/<your-id>/`. CI runs `node scripts/check-modes.mjs`.
+1. Open a pull request with one mode under `modes/<your-id>/`. CI runs `node scripts/check-modes.mjs`, which runs `brawl-modes check` on every mode.
 2. A maintainer reads the code and plays the mode.
 3. The game server pins each accepted mode by the hash of its build. Merging here does **not** put a mode live, and an update only goes live after the same review.
 

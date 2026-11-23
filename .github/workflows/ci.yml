@@ -26,8 +26,12 @@ jobs:
           cache-dependency-path: npm-shrinkwrap.json
       # Shrinkwrap only, no install scripts: a PR can't run code at install time.
       - run: npm ci --ignore-scripts
-      - name: Dev kit tests, build and policy checks for every mode
-        run: node scripts/check-modes.mjs
+      - name: Dev kit unit tests
+        run: node --test "tests/**/*.test.mjs"
+      # brawl-modes check on every mode (policy, test, bench, build), and the bench numbers must equal
+      # scripts/bench-baseline.json exactly: work units are the same on every machine, and this proves it.
+      - name: Check every mode
+        run: node scripts/check-modes.mjs --baseline
 
       - name: The packed kit has what a game needs
         run: |
