@@ -45,9 +45,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
         run: |
-          sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha 2>/dev/null || true)
-          if [ -n "$sha" ] && [ "$sha" != "$GITHUB_SHA" ]; then
-            echo "$TAG already exists on $sha, not on $GITHUB_SHA. Bump the version."; exit 1
+          # gh api fails (404) when the tag does not exist yet; only an existing tag on another commit stops us.
+          if sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/tags/$TAG" --jq .sha 2>/dev/null); then
+            if [ "$sha" != "$GITHUB_SHA" ]; then
+              echo "$TAG already exists on $sha, not on $GITHUB_SHA. Bump the version."; exit 1
+            fi
           fi
 
       - run: npm ci --no-audit --no-fund --ignore-scripts
