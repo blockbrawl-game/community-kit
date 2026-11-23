@@ -61,12 +61,16 @@
     return new (Function.prototype.bind.apply(RealDate, [null].concat(args)))();
   }
   MatchDate.prototype = RealDate.prototype;
+  // Without this, `new Date().constructor` is the real Date and `.now()` on it reads the wall clock.
+  RealDate.prototype.constructor = MatchDate;
   MatchDate.now = function () {
     return MATCH_EPOCH_MS + timeMs;
   };
   MatchDate.parse = RealDate.parse;
   MatchDate.UTC = RealDate.UTC;
   globalThis.Date = MatchDate;
+  // Intl formats "now" when called without a date, which is another way to read the wall clock.
+  delete globalThis.Intl;
 
   // Binary buffers are allocated outside the JavaScript heap, where the host's heap limit cannot see them.
   // State is JSON, so a mode has no need for them; removing them keeps everything a mode holds inside the

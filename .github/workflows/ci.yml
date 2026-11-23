@@ -21,9 +21,21 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
-      # Lockfile only, no install scripts: a PR can't run code at install time.
+          cache-dependency-path: npm-shrinkwrap.json
+      # Shrinkwrap only, no install scripts: a PR can't run code at install time.
       - run: npm ci --ignore-scripts
       - name: Dev kit tests, build and policy checks for every mode
         run: node scripts/check-modes.mjs
+
+      - name: The packed kit has what a game needs
+        run: |
+          rm -rf modes/*/dist
+          npm pack --dry-run --json > pack.json
+          node -e '
+            const files = new Set(JSON.parse(require("fs").readFileSync("pack.json", "utf8"))[0].files.map((f) => f.path));
+            const need = ["devkit/cli.js", "sdk/server.js", "runtime/prelude.js", "runtime/limits.json", "shell/shell.js", "shell/transport-signalr.js", "npm-shrinkwrap.json", "LICENSE"];
+            const missing = need.filter((f) => !files.has(f));
+            if (missing.length) { console.error("missing from the package: " + missing.join(", ")); process.exit(1); }
+            console.log(files.size + " files packed");'

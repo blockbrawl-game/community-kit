@@ -67,6 +67,21 @@ export function signalRTransport({ signalR, hubUrl, ticket }) {
       transport.onClose?.();
     },
 
+    /** Leaves the match for good (the player forfeits), then closes. Resolves when the server has been told. */
+    async leave() {
+      wanted = false;
+      const current = connection;
+      connection = null;
+      if (!current) return;
+      try {
+        if (current.state === signalR.HubConnectionState.Connected) await current.invoke('Leave');
+      } catch {
+        // The connection is going away either way; a lost Leave becomes a disconnect on the server.
+      }
+      current.stop();
+      transport.onClose?.();
+    },
+
     send(message) {
       const current = connection;
       if (!current || current.state !== signalR.HubConnectionState.Connected) return;

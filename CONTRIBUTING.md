@@ -1,6 +1,6 @@
 # Contributing a mode
 
-1. `npm install`, then `node devkit/cli.js dev duel-lite` to see how a mode behaves.
+1. `npm ci`, then `node devkit/cli.js dev duel-lite` to see how a mode behaves.
 2. Copy a reference mode from `modes/` to `modes/<your-id>/` and change `mode.json` (`id` must equal the folder name).
 3. Develop with `node devkit/cli.js dev <your-id>`; test with `node devkit/cli.js test <your-id>`.
 4. Run `node scripts/check-modes.mjs <your-id>` before opening a PR. CI runs the same script.
@@ -15,7 +15,9 @@
 
 ## Ground rules
 
-- No network access, no eval, no typed arrays on the server; use `ctx.rng`, never `Math.random`.
+- No network access, no eval, no typed arrays on the server; use `ctx.rng`, never `Math.random` (an offline mode, with no server, may use `Math.random`).
 - Keep within the limits in `runtime/limits.json` (state size, call time, bundle size).
 - No new npm dependencies in a mode PR.
 - Be kind. Maintainers may close PRs that are spam, off-topic, or low effort without a long explanation.
+
+By opening a pull request you agree that your contribution is licensed under this repository's [MIT license](LICENSE).

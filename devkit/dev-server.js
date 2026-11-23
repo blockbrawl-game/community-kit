@@ -91,7 +91,7 @@ export async function startDevServer({ modeName, port = 5173, playerCount, seed 
     if (ticker || host.ended) return;
     startedAt = Date.now() - host.timeMs;
     if (manifest.tickRate <= 0) return;
-    const dtMs = 1000 / manifest.tickRate;
+    const dtMs = Math.round(1000 / manifest.tickRate); // whole milliseconds, as the server sends
     ticker = setInterval(() => guard(() => host.tick(dtMs)), dtMs);
   }
 

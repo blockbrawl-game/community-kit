@@ -125,7 +125,9 @@ function fuzzRun({ mode, bundle, createModel, nextAction, seed, playerCount }) {
     client.synced = true;
   }
 
-  const dtMs = manifest.tickRate > 0 ? 1000 / manifest.tickRate : 100;
+  // Whole milliseconds, as on the server (JsGameLogic rounds the measured tick delta): at 30 ticks a second a
+  // fractional 33.33 would make dev kit runs impossible to replay on the server.
+  const dtMs = manifest.tickRate > 0 ? Math.round(1000 / manifest.tickRate) : 100;
   let forfeitUsed = false;
   let iterations = 0;
   for (; iterations < MAX_ITERATIONS && !host.ended; iterations++) {
@@ -183,13 +185,24 @@ function percentile(sorted, p) {
   return sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))] : 0;
 }
 
-export async function runTests({ modeName, runs = 20, seed = 1, recordFile }) {
+/**
+ * Runs the checks and prints a report. Returns whether they passed; when `report` is given it is filled with
+ * { passed, failures, warnings, budgets } for tools that want the result as data (`test --json`).
+ */
+export async function runTests({ report, ...options }) {
+  const collected = { failures: [], warnings: [] };
+  const passed = await runChecks(options, collected);
+  if (report) Object.assign(report, { passed, ...collected });
+  return passed;
+}
+
+async function runChecks({ modeName, runs = 20, seed = 1, recordFile }, report) {
   const mode = await loadMode(modeName);
   const { manifest } = mode;
   console.log(`Testing ${manifest.id} ${manifest.version}\n`);
 
-  const failures = [];
-  const warnings = [];
+  const failures = report.failures;
+  const warnings = report.warnings;
   const pass = (text) => console.log(`  ok    ${text}`);
   const fail = (text) => { failures.push(text); console.log(`  FAIL  ${text}`); };
   const warn = (text) => { warnings.push(text); console.log(`  warn  ${text}`); };
@@ -282,6 +295,12 @@ export async function runTests({ modeName, runs = 20, seed = 1, recordFile }) {
     console.log(`    step batch     max ${totals.maxBatchBytes} bytes              (limit ${limits.maxBatchBytes})`);
     console.log(`    bandwidth      ${Math.round(rate)} bytes/s per player (JSON, before transport encoding)`);
     if (p99 > limits.warnCallP99Ms) warn(`call time p99 is above ${limits.warnCallP99Ms} ms.`);
+    {
+      report.budgets = {
+        callP50Ms: p50, callP99Ms: p99, maxStateBytes: totals.maxStateBytes, maxBatchBytes: totals.maxBatchBytes,
+        bytesPerSecondPerPlayer: Math.round(rate), serverBundleBytes: bundle.length, clientBytes,
+      };
+    }
 
     if (recordFile && completed.length > 0 && failures.length === 0) {
       const first = completed[0];

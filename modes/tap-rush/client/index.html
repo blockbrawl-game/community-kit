@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Tap Rush</title>
+<style>
+  :root { --bg: #14161c; --panel: #1e222b; --line: #2c323e; --text: #e8eaf0; --dim: #8b93a5; --lit: #4f9dff; --miss: #d64545; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 12px; user-select: none; touch-action: manipulation; }
+  .top { display: flex; justify-content: space-between; width: min(100%, 320px); font-variant-numeric: tabular-nums; }
+  .top b { font-size: 22px; }
+  .top span { color: var(--dim); }
+  .board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; width: min(100%, 320px); aspect-ratio: 1; }
+  .cell { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 0; }
+  .cell.lit { background: var(--lit); border-color: var(--lit); }
+  .cell.miss { background: var(--miss); border-color: var(--miss); }
+  .overlay { position: fixed; inset: 0; background: rgba(10, 12, 16, 0.88); display: none; place-items: center; text-align: center; }
+  .overlay.show { display: grid; }
+  .overlay h1 { margin: 0 0 6px; font-size: 28px; }
+  .overlay p { margin: 0 0 16px; color: var(--dim); }
+  .overlay button { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 18px; margin: 0 4px; }
+  .overlay button.primary { background: var(--lit); border-color: var(--lit); color: #0b1220; font-weight: 600; }
+</style>
+</head>
+<body>
+  <div class="top"><div><span>Score</span> <b id="score">0</b></div><div><span>Time</span> <b id="time">30</b></div></div>
+  <div class="board" id="board"></div>
+  <div class="overlay show" id="overlay">
+    <div>
+      <h1 id="title">Tap Rush</h1>
+      <p id="text">Tap the lit block. A miss costs a point.</p>
+      <button class="primary" id="start">Start</button>
+      <button id="back">Back</button>
+    </div>
+  </div>
+
+<script type="module">
+import { connectOffline } from '@blockbrawl/mode-sdk/offline.js';
+
+const SIZE = 25;
+const DURATION_MS = 30000;
+const $ = (id) => document.getElementById(id);
+const cells = [];
+let lit = -1;
+let score = 0;
+let endsAt = 0;
+let running = false;
+
+const game = connectOffline({
+  onReady(g) {
+    const me = g.players.find((p) => p.id === g.me);
+    if (me) $('text').textContent = `${me.name}, tap the lit block. A miss costs a point.`;
+  },
+});
+
+for (let i = 0; i < SIZE; i++) {
+  const cell = document.createElement('button');
+  cell.className = 'cell';
+  cell.setAttribute('aria-label', `Block ${i + 1}`);
+  cell.addEventListener('pointerdown', () => tap(i));
+  $('board').appendChild(cell);
+  cells.push(cell);
+}
+
+function light() {
+  let next = lit;
+  while (next === lit) next = Math.floor(Math.random() * SIZE);
+  if (lit >= 0) cells[lit].classList.remove('lit');
+  lit = next;
+  cells[lit].classList.add('lit');
+}
+
+function tap(index) {
+  if (!running) return;
+  if (index === lit) {
+    score++;
+    light();
+  } else {
+    score = Math.max(0, score - 1);
+    cells[index].classList.add('miss');
+    setTimeout(() => cells[index].classList.remove('miss'), 150);
+  }
+  $('score').textContent = score;
+}
+
+function frame() {
+  if (!running) return;
+  const left = Math.max(0, endsAt - performance.now());
+  $('time').textContent = Math.ceil(left / 1000);
+  if (left <= 0) return finish();
+  requestAnimationFrame(frame);
+}
+
+function start() {
+  score = 0;
+  $('score').textContent = 0;
+  endsAt = performance.now() + DURATION_MS;
+  running = true;
+  $('overlay').classList.remove('show');
+  light();
+  requestAnimationFrame(frame);
+}
+
+function finish() {
+  running = false;
+  if (lit >= 0) cells[lit].classList.remove('lit');
+  lit = -1;
+  $('title').textContent = `Score ${score}`;
+  $('text').textContent = 'Time is up.';
+  $('start').textContent = 'Play again';
+  $('overlay').classList.add('show');
+  game.finish({ score });
+}
+
+$('start').addEventListener('click', start);
+$('back').addEventListener('click', () => game.exit());
+</script>
+</body>
+</html>
