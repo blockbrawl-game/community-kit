@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "checkJs": true,
+    "noEmit": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "paths": { "@blockbrawl/mode-sdk/*": ["__KIT__/sdk/*"] }
+  },
+  "include": ["modes/**/*.js"],
+  "exclude": ["**/dist", "**/node_modules"]
+}

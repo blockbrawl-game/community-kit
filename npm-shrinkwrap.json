@@ -1,12 +1,12 @@
 {
   "name": "@blockbrawl-game/community-kit",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "@blockbrawl-game/community-kit",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "license": "MIT",
       "dependencies": {
         "@microsoft/signalr": "^11.0.0",

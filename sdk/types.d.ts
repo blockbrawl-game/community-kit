@@ -13,7 +13,7 @@ export interface Player {
 }
 
 export interface Rng {
-  /** Float in [0, 1). Math.random() is the same generator. */
+  /** Float in [0, 1). Use this, never Math.random(): the source policy rejects Math.random in online modes. */
   next(): number;
   /** Integer in [0, maxExclusive). */
   int(maxExclusive: number): number;
@@ -120,5 +120,5 @@ export function defineMode<S, A>(mode: ModeServer<S, A>): ModeServer<S, A>;
 export function reject(reason: string): Error;
 export function connect(options: ModeClientOptions): GameHandle;
 
-/** Dev-only action generator used by `devkit test`. Export `nextAction` from the `fuzz` file in mode.json. */
+/** Dev-only action generator used by `brawl-modes test` and `bench`. Export `nextAction` from the `fuzz` file in mode.json. */
 export type NextAction = (model: ModeClientModel, playerId: string, rng: Rng) => Json | null;

@@ -1,4 +1,4 @@
-// `devkit dev <mode> --remote`: the same shell and mode client, but the match runs on the real local
+// `brawl-modes dev <mode> --remote`: the same shell and mode client, but the match runs on the real local
 // gateway and silo (ClearScript, Orleans, snapshots) instead of in this process.
 //
 // This server only serves pages. It asks the gateway's development endpoint for a match and one ticket

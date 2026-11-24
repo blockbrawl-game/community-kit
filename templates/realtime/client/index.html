@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__MODE_NAME__</title>
+<style>
+  :root { --bg: #14161c; --cell: #1f232c; --text: #eef0f4; --muted: #9aa3b2; --coin: #ffd44f; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--text);
+         font: 16px/1.4 system-ui, sans-serif; touch-action: none; user-select: none; }
+  main { width: min(420px, 100vw - 32px); text-align: center; }
+  .status { color: var(--muted); min-height: 1.4em; margin-bottom: 8px; }
+  .board { display: grid; gap: 3px; aspect-ratio: 1; }
+  .cell { background: var(--cell); border-radius: 4px; }
+  .cell.coin { background: var(--coin); border-radius: 50%; transform: scale(0.6); }
+  .scores { display: flex; gap: 12px; justify-content: center; margin-top: 12px; }
+  .pad { display: grid; grid-template-columns: repeat(3, 64px); gap: 8px; justify-content: center; margin-top: 16px; }
+  .pad button { height: 64px; font-size: 24px; border: 0; border-radius: 12px; background: var(--cell); color: var(--text); }
+</style>
+</head>
+<body>
+<main>
+  <div class="status" id="status">Connecting…</div>
+  <div class="board" id="board"></div>
+  <div class="scores" id="scores"></div>
+  <div class="pad">
+    <span></span><button data-d="up">▲</button><span></span>
+    <button data-d="left">◀</button><span></span><button data-d="right">▶</button>
+    <span></span><button data-d="down">▼</button><span></span>
+  </div>
+</main>
+<script type="module">
+import { connect } from '@blockbrawl/mode-sdk/client';
+import { createModel } from './model.js';
+import { MATCH_MS, SIZE, WIN_COINS } from '../shared.js';
+
+const COLORS = ['#5aa9ff', '#ff6b6b', '#5ad18a', '#c08cff', '#ff9f43', '#4fd1d9', '#f368e0', '#c8d6e5'];
+const model = createModel();
+const { state } = model;
+const $ = (id) => document.getElementById(id);
+
+const game = connect({ model, onChange: render });
+
+$('board').style.gridTemplateColumns = `repeat(${SIZE}, 1fr)`;
+const cells = Array.from({ length: SIZE * SIZE }, () => $('board').appendChild(document.createElement('div')));
+
+const send = (d) => game.send({ t: 'dir', d });
+for (const button of document.querySelectorAll('.pad button')) button.addEventListener('pointerdown', () => send(button.dataset.d));
+const KEYS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right' };
+window.addEventListener('keydown', (event) => { if (KEYS[event.key]) send(KEYS[event.key]); });
+
+function render() {
+  if (!game.ready) return;
+  cells.forEach((cell) => { cell.className = 'cell'; cell.style.background = ''; });
+  cells[state.coin[0] + state.coin[1] * SIZE].classList.add('coin');
+  state.players.forEach((pl, p) => {
+    if (!pl.out) cells[pl.x + pl.y * SIZE].style.background = COLORS[p % COLORS.length];
+  });
+  $('scores').replaceChildren(...state.players.map((pl, p) => {
+    const el = document.createElement('span');
+    el.style.color = COLORS[p % COLORS.length];
+    el.textContent = `${p === model.myIndex ? 'You' : `P${p + 1}`}: ${pl.coins}`;
+    return el;
+  }));
+  const left = Math.max(0, Math.ceil((MATCH_MS - game.timeMs()) / 1000));
+  $('status').textContent = state.over ? 'Match over' : `First to ${WIN_COINS} · ${left}s left`;
+}
+setInterval(render, 250); // keeps the countdown moving between steps
+</script>
+</body>
+</html>

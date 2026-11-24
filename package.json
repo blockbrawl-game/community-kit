@@ -1,6 +1,6 @@
 {
   "name": "@blockbrawl-game/community-kit",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "SDK and dev kit for BlockBrawl community game modes: mode SDK, dev kit (build, test, dev server), sandbox runtime prelude and play-page shell, with example modes.",
   "license": "MIT",
   "type": "module",
@@ -13,7 +13,12 @@
     "runtime/",
     "shell/",
     "modes/",
+    "templates/",
+    "schema/",
     "docs/",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "CHANGELOG.md",
     "README.md",
     "LICENSE",
     "npm-shrinkwrap.json"
@@ -27,7 +32,8 @@
     "dev": "node devkit/cli.js dev",
     "build": "node devkit/cli.js build",
     "check": "node devkit/cli.js check",
-    "bench": "node devkit/cli.js bench"
+    "bench": "node devkit/cli.js bench",
+    "new": "node devkit/cli.js new"
   },
   "engines": {
     "node": ">=20"

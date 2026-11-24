@@ -44,4 +44,4 @@ There is no rollback code. Because the drawn picture is always recomputed from `
 - **`snapshot()` returns `auth` only.** Predictions are not part of the confirmed model.
 - **Check locally before sending.** If the shared rule says a move is blocked, do not send it.
 - **Stop replaying at an action whose outcome you cannot know.** Stack Race stops at a drop: actions after it apply to a piece the client has not been told about yet.
-- **Try it with latency.** Set the latency slider in `devkit dev` to 200 ms and the drop slider to 10%. The mode should still feel responsive and never end up in a wrong state.
+- **Try it with latency.** Set the latency slider in `brawl-modes dev` to 200 ms and the drop slider to 10%. The mode should still feel responsive and never end up in a wrong state.

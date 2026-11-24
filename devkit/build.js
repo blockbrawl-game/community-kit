@@ -3,7 +3,7 @@ import { build } from 'esbuild';
 import { createHash } from 'node:crypto';
 import { cp, mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -13,8 +13,15 @@ export const limits = JSON.parse(await readFile(path.join(communityRoot, 'runtim
 /** The SDK line this kit and its runtime implement; the server checks the same rule (ModeRegistry.SupportedSdk). */
 export const SUPPORTED_SDK = '0.1';
 
-const ID_PATTERN = /^[a-z][a-z0-9-]{2,31}$/;
+export const ID_PATTERN = /^[a-z][a-z0-9-]{2,31}$/;
 const TAG_PATTERN = /^[a-z0-9][a-z0-9-]{1,19}$/;
+// Every key mode.json may have; schema/mode.schema.json lists the same ones. Anything else is most likely a typo.
+const MANIFEST_KEYS = ['$schema', 'id', 'name', 'version', 'sdk', 'author', 'runtime', 'tagline', 'description', 'tags',
+  'players', 'tickRate', 'orientation', 'server', 'client', 'clientModel', 'fuzz'];
+const ORIENTATIONS = ['portrait', 'landscape', 'any'];
+/** Store thumbnail files, looked for in this order (the server's ModeRegistry uses the same list and limit). */
+export const THUMBNAIL_FILES = ['thumb.webp', 'thumb.png', 'thumb.jpg'];
+export const MAX_THUMBNAIL_BYTES = 512 * 1024;
 
 /** sha256 of the UTF-8 text, lowercase hex: the value a reviewer approves and the server checks. */
 export function hashText(text) {
@@ -54,6 +61,10 @@ export async function loadMode(nameOrPath) {
 
 export function validateManifest(manifest, dir) {
   const problems = [];
+  if (manifest === null || typeof manifest !== 'object' || Array.isArray(manifest)) return ['mode.json must be a JSON object.'];
+  for (const key of Object.keys(manifest)) {
+    if (!MANIFEST_KEYS.includes(key)) problems.push(`unknown key "${key}". Allowed: ${MANIFEST_KEYS.slice(1).join(', ')}.`);
+  }
   if (!ID_PATTERN.test(manifest.id ?? '')) problems.push('id must be 3-32 chars: lowercase letters, digits, dashes.');
   if (dir && path.basename(dir) !== manifest.id) problems.push(`folder name must equal id ("${manifest.id}").`);
   if (!/^\d+\.\d+\.\d+$/.test(manifest.version ?? '')) problems.push('version must be semver, for example 1.0.0.');
@@ -81,7 +92,20 @@ export function validateManifest(manifest, dir) {
   }
   if (typeof manifest.tagline === 'string' && manifest.tagline.length > 80) problems.push('tagline must be at most 80 characters.');
   if (typeof manifest.description === 'string' && manifest.description.length > 2000) problems.push('description must be at most 2000 characters.');
-  if (offline && manifest.server !== undefined) problems.push('an offline mode has no server; remove "server" or set runtime to "online".');
+  if (manifest.orientation !== undefined && !ORIENTATIONS.includes(manifest.orientation)) {
+    problems.push(`orientation must be one of ${ORIENTATIONS.join(', ')}.`);
+  }
+  for (const key of ['server', 'clientModel', 'fuzz']) {
+    if (offline && manifest[key] !== undefined) problems.push(`an offline mode has no server; remove "${key}" or set runtime to "online".`);
+  }
+  if (dir) {
+    for (const file of THUMBNAIL_FILES) {
+      const full = path.join(dir, file);
+      if (existsSync(full) && statSync(full).size > MAX_THUMBNAIL_BYTES) {
+        problems.push(`${file} is ${statSync(full).size} bytes; the store ignores thumbnails over ${MAX_THUMBNAIL_BYTES} bytes.`);
+      }
+    }
+  }
   for (const key of offline ? ['client'] : ['server', 'client', 'clientModel']) {
     if (typeof manifest[key] !== 'string') problems.push(`${key} is required.`);
     else if (dir && !existsSync(path.join(dir, manifest[key]))) problems.push(`${key} file "${manifest[key]}" does not exist.`);

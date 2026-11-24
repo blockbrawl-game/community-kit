@@ -1,27 +1,42 @@
 #!/usr/bin/env node
-// Dev kit command line: dev, test, build.
+// The `brawl-modes` command line: new, dev, test, bench, check, build.
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { bundleClient, bundleServer, hashText, isOffline, limits, loadMode } from './build.js';
 
-const USAGE = `Usage:
-  devkit dev <mode> [--players N] [--port 5173] [--seed N]
-  devkit dev <mode> --remote [--gateway http://localhost:5121] [--players N] [--port 5173]
-  devkit test <mode> [--runs 20] [--seed N] [--record file.json] [--json]
-  devkit build <mode> [--out dir] [--json]
-  devkit bench <mode> [--runs 10] [--seed N] [--json]
-  devkit check <mode> [--json]
+const USAGE = `brawl-modes: build, test and check BlockBrawl community modes.
 
-<mode> is a mode id under community/modes, or a path to a mode folder.
+Usage:
+  brawl-modes new <id> [--template turn|realtime|offline] [--name "Display name"]
+  brawl-modes dev <mode> [--players N] [--port 5173] [--seed N]
+  brawl-modes dev <mode> --remote [--gateway http://localhost:5121] [--players N] [--port 5173]
+  brawl-modes test <mode> [--runs 20] [--seed N] [--record file.json] [--json]
+  brawl-modes bench <mode> [--runs 10] [--seed N] [--json]
+  brawl-modes check <mode> [--json]
+  brawl-modes build <mode> [--out dir] [--json]
+
+new    creates ./modes/<id> from a template that passes check (turn is the default; --offline is --template offline)
+dev    plays the mode in the browser, every player side by side
+test   fuzz, sync, determinism, hydration and size checks
+bench  server cost in work units, the same on every machine, against the server's gates
+check  everything review runs (policy, test, bench, build); a mode is ready when it prints READY TO SUBMIT
+build  writes the built mode to <mode>/dist and prints the hashes a reviewer approves
+
+<mode> is a mode id under your ./modes folder, or a path to a mode folder.
 A mode with "runtime": "offline" in mode.json has no server: dev serves only its client, test checks only its build.
---json prints the result as one JSON object on stdout (the report goes to stderr), for tools and build servers.`;
+--json prints the result as one JSON object on stdout (the report goes to stderr), for tools and AI assistants.
+Docs: https://github.com/blockbrawl-game/community-kit/tree/main/docs`;
+
+// Flags that never take a value, so `new --offline my-mode` keeps my-mode as the id.
+const BOOLEAN_FLAGS = new Set(['json', 'offline', 'remote', 'help']);
 
 function parseArgs(argv) {
   const positional = [];
   const flags = {};
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i].startsWith('--')) flags[argv[i].slice(2)] = argv[i + 1]?.startsWith('--') || argv[i + 1] === undefined ? true : argv[++i];
-    else positional.push(argv[i]);
+    if (!argv[i].startsWith('--')) positional.push(argv[i]);
+    else if (BOOLEAN_FLAGS.has(argv[i].slice(2))) flags[argv[i].slice(2)] = true;
+    else flags[argv[i].slice(2)] = argv[i + 1]?.startsWith('--') || argv[i + 1] === undefined ? true : argv[++i];
   }
   return { positional, flags };
 }
@@ -45,6 +60,18 @@ try {
   if (!command || !modeName || flags.help) {
     console.log(USAGE);
     process.exit(command ? 1 : 0);
+  }
+
+  if (command === 'new') {
+    const { createMode, packageWarning } = await import('./new.js');
+    const template = flags.offline === true ? 'offline' : typeof flags.template === 'string' ? flags.template : 'turn';
+    const written = await createMode({ id: modeName, template, name: typeof flags.name === 'string' ? flags.name : undefined });
+    console.log(`Created ${written.join(', ')} from the ${template} template.`);
+    const warning = await packageWarning();
+    if (warning) console.log(`Warning: ${warning}`);
+    console.log(`\nNext:\n  npx brawl-modes check ${modeName}   # passes as generated; keep it passing\n  npx brawl-modes dev ${modeName}     # play it\nRead AGENTS.md for the rules and the workflow.`);
+    if (json) printResult(JSON.stringify({ passed: true, id: modeName, template, written }));
+    process.exit(0);
   }
 
   const offline = command === 'dev' || command === 'test' ? isOffline((await loadMode(modeName)).manifest) : false;

@@ -9,62 +9,65 @@ A mode has two halves:
 
 The two halves talk through **steps**: small JSON facts the server emits and the client applies. When a player joins or reconnects, the server sends a **sync**: the steps that rebuild that player's view from nothing.
 
+> **Using an AI assistant?** Point it at [`AGENTS.md`](AGENTS.md) (in this repository) or at the `AGENTS.md`
+> that `brawl-modes new` writes into your folder. It has the commands, the rules that fail review, and what "done"
+> means: `brawl-modes check <mode>` prints `READY TO SUBMIT`. Claude Code reads it through `CLAUDE.md`.
+
 ## Quick start
 
-Requires Node 20 or newer.
+Requires Node 20 or newer. In an empty folder:
+
+```bash
+npm init -y
+npm pkg set type=module
+npm install --save-exact https://github.com/blockbrawl-game/community-kit/releases/download/v0.6.0/blockbrawl-game-community-kit-0.6.0.tgz
+npx brawl-modes new my-mode --template turn
+npx brawl-modes check my-mode
+npx brawl-modes dev my-mode
+```
+
+`new` creates `modes/my-mode/` from a template (`turn`, `realtime` or `offline`) that already passes `check`,
+plus `AGENTS.md`, `CLAUDE.md` and `jsconfig.json` for your assistant and editor. The full walkthrough is
+[docs/getting-started.md](docs/getting-started.md).
+
+| Command | What it does |
+| --- | --- |
+| `brawl-modes new <id> [--template turn\|realtime\|offline]` | A new mode that passes `check` as generated |
+| `brawl-modes dev <mode> [--players N]` | Plays the mode in the browser: every player side by side, latency and packet-drop sliders, a message log and the live server state |
+| `brawl-modes test <mode>` | Fuzz, sync, determinism, hydration and size checks |
+| `brawl-modes bench <mode>` | Server cost in work units, the same on every machine, against the server's gates |
+| `brawl-modes check <mode>` | Everything review runs, with one verdict: run this before submitting |
+| `brawl-modes build <mode>` | Writes `modes/<mode>/dist` and prints the hashes a reviewer pins |
+
+Every command takes `--json` for one machine-readable result object on stdout. A mode id is looked up in your
+`./modes` first, then in this kit's examples, so `npx brawl-modes dev duel-lite` works anywhere.
+
+### Installing
+
+Every release is a git tag (`vX.Y.Z`) with a GitHub release that has the packed kit attached. There is no npm
+registry package and no token is needed. npm pins the release file's integrity hash in your lockfile, and it needs
+neither git nor an SSH key, so it also works in container builds. (`npm install
+github:blockbrawl-game/community-kit#v0.6.0` works too, but records a `git+ssh` URL that needs git and GitHub SSH
+access on every machine that runs `npm ci`.) What changed in each release: [CHANGELOG.md](CHANGELOG.md).
+
+### Working in this repository
 
 ```bash
 npm ci
+npm test                          # unit tests, then check on every example
+node devkit/cli.js dev duel-lite  # npx brawl-modes ... is node devkit/cli.js ... here
 ```
-
-```bash
-node devkit/cli.js dev duel-lite
-```
-
-Open the printed dashboard URL. It shows every player side by side, with latency and packet-drop sliders, a message log and a live view of the server state.
-
-```bash
-node devkit/cli.js test duel-lite
-```
-
-```bash
-node devkit/cli.js bench duel-lite   # server cost in work units: the same on every machine
-```
-
-```bash
-node devkit/cli.js check duel-lite   # everything review checks, with one verdict: run this before submitting
-```
-
-```bash
-node devkit/cli.js build duel-lite   # writes modes/duel-lite/dist and prints the hashes a reviewer pins
-```
-
-`--json` on `build` and `test` prints the result as one JSON object, for tools and build servers.
-
-## Using the kit from your own folder
-
-Every release is a git tag (`vX.Y.Z`) with a GitHub release that has the packed kit attached. There is no npm
-registry package and no token is needed. Install the release file; npm pins its integrity hash in your lockfile,
-and it needs neither git nor an SSH key, so it also works in container builds:
-
-```bash
-npm install --save-exact https://github.com/blockbrawl-game/community-kit/releases/download/v0.5.0/blockbrawl-game-community-kit-0.5.0.tgz
-```
-
-(`npm install github:blockbrawl-game/community-kit#v0.5.0` works too, but records a `git+ssh` URL that needs git
-and GitHub SSH access on every machine that runs `npm ci`.)
-
-Keep your modes in `modes/<mode-id>/` next to your `package.json` and run `npx brawl-modes dev|test|build <mode-id>`.
-A mode id is looked up in your `./modes` first, then in this kit's examples.
 
 ## Layout
 
 | Folder | What it is |
 | --- | --- |
-| `sdk/` | `defineMode`, `reject`, `connect` and the TypeScript interfaces (`types.d.ts`) |
+| `sdk/` | `defineMode`, `reject`, `connect`, `connectOffline` and the TypeScript interfaces (`types.d.ts`) |
 | `runtime/` | The sandbox prelude and limits shared by the dev kit and the real server |
 | `shell/` | The trusted host page code that wraps a mode client |
-| `devkit/` | The `dev`, `test` and `build` commands |
+| `devkit/` | The `brawl-modes` command: `new`, `dev`, `test`, `bench`, `check`, `build` |
+| `templates/` | The `turn`, `realtime` and `offline` templates and the workspace files `new` writes |
+| `schema/` | The JSON schema of `mode.json` |
 | `modes/duel-lite/` | Turn-based reference mode: steps, private hands, sync |
 | `modes/stack-race/` | Real-time reference mode: ticking and client prediction |
 | `modes/tap-rush/` | Offline reference mode: no server, the whole game is the client |
@@ -84,17 +87,22 @@ modes/<mode-id>/
   client/index.html  the client page
   client/model.js    export function createModel()  (no DOM access)
   tests/fuzz.js      export function nextAction(model, playerId, rng)
+  README.md          optional: what the mode is
+  thumb.webp         optional: the store image (640 x 360, at most 512 KB)
 ```
 
-Start by copying `modes/duel-lite`.
+Start with `brawl-modes new`. Every example has a README saying what it teaches.
 
 ## Docs
 
+- [Getting started](docs/getting-started.md): your first mode, step by step.
 - [Interfaces](docs/interfaces.md): what a mode must implement.
 - [Steps and sync](docs/steps-and-sync.md): how to keep clients consistent and bandwidth low.
 - [Prediction](docs/prediction.md): making fast-paced modes feel instant.
-- [Limits and testing](docs/limits.md): the sandbox rules and what `devkit test` checks.
+- [Limits and testing](docs/limits.md): the sandbox rules and what `brawl-modes test` checks.
 - [Benchmark](docs/benchmark.md): work units, the server's two performance gates, and how to get under them.
+- [Offline modes](docs/offline-modes.md): single-player modes with no server.
+- [The store listing](docs/listing.md): name, tagline, description, tags and thumbnail.
 - [Roadmap](docs/roadmap.md): what is coming for mode developers, in order.
 
 ## How a mode goes live
@@ -109,6 +117,7 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
 The game server embeds `runtime/` and `shell/`, and a mode's approved hash depends on the kit version that built
 it, so the game pins one exact release. A release bumps `version` in `package.json` and `npm-shrinkwrap.json`, and
+adds a [CHANGELOG.md](CHANGELOG.md) entry, and
 then the Release workflow (run it from the Actions tab, or push the tag `v<version>`) checks every mode, creates
 the tag and a GitHub release with notes and the packed kit attached.
 

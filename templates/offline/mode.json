@@ -1,0 +1,15 @@
+{
+  "$schema": "__SCHEMA__",
+  "id": "__MODE_ID__",
+  "name": "__MODE_NAME__",
+  "version": "1.0.0",
+  "sdk": "0.1",
+  "author": "",
+  "runtime": "offline",
+  "tagline": "Tap as fast as you can for ten seconds.",
+  "description": "An offline starting point: no server, the whole game is the client. Tap the button as often as you can in ten seconds. Replace the game with your own.",
+  "tags": ["solo", "reflex"],
+  "players": { "min": 1, "max": 1 },
+  "orientation": "portrait",
+  "client": "client/index.html"
+}

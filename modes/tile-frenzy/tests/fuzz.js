@@ -1,4 +1,4 @@
-// Action generator for `devkit test`: grabs what a player can see, sometimes a stale or empty tile.
+// Action generator for `brawl-modes test`: grabs what a player can see, sometimes a stale or empty tile.
 import { CELLS } from '../shared.js';
 
 export function nextAction(model, playerId, rng) {

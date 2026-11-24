@@ -1,0 +1,18 @@
+{
+  "$schema": "__SCHEMA__",
+  "id": "__MODE_ID__",
+  "name": "__MODE_NAME__",
+  "version": "1.0.0",
+  "sdk": "0.1",
+  "author": "",
+  "tagline": "Race to the coin. First to five wins.",
+  "description": "A real-time starting point: every player steers a block around a small arena, ten moves a second, and whoever grabs five coins first wins. After a minute the most coins wins. Replace the rules with your own.",
+  "tags": ["real-time", "arcade"],
+  "players": { "min": 1, "max": 4 },
+  "tickRate": 10,
+  "orientation": "portrait",
+  "server": "server.js",
+  "client": "client/index.html",
+  "clientModel": "client/model.js",
+  "fuzz": "tests/fuzz.js"
+}

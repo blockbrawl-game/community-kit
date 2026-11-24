@@ -1,4 +1,4 @@
-// `devkit dev`: runs one match of a mode locally and serves the shell, the mode client and a dashboard.
+// `brawl-modes dev`: runs one match of a mode locally and serves the shell, the mode client and a dashboard.
 import http from 'node:http';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';

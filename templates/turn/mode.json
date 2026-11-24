@@ -1,0 +1,18 @@
+{
+  "$schema": "__SCHEMA__",
+  "id": "__MODE_ID__",
+  "name": "__MODE_NAME__",
+  "version": "1.0.0",
+  "sdk": "0.1",
+  "author": "",
+  "tagline": "Take turns adding 1 to 3. Reach 21 first to win.",
+  "description": "A turn-based starting point: players take turns adding 1, 2 or 3 to a shared total, and whoever brings it to 21 wins. Replace the rules with your own.",
+  "tags": ["turn-based", "party"],
+  "players": { "min": 2, "max": 4 },
+  "tickRate": 0,
+  "orientation": "portrait",
+  "server": "server.js",
+  "client": "client/index.html",
+  "clientModel": "client/model.js",
+  "fuzz": "tests/fuzz.js"
+}
