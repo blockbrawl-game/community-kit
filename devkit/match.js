@@ -21,8 +21,9 @@ export class MatchHost {
    * @param {number} options.seed
    * @param {(playerId: string, message: object) => void} [options.onSend]
    * @param {object} [options.limits]
+   * @param {boolean} [options.countWork] count work units per call (devkit/work.js), for `bench`
    */
-  constructor({ manifest, bundle, players, seed, onSend, limits }) {
+  constructor({ manifest, bundle, players, seed, onSend, limits, countWork }) {
     this.manifest = manifest;
     this.bundle = bundle;
     this.players = players;
@@ -30,7 +31,8 @@ export class MatchHost {
     this.onSend = onSend ?? (() => {});
     this.limits = { ...defaultLimits, ...limits };
 
-    this.sandbox = new Sandbox(bundle, { maxCallMs: this.limits.maxCallMs });
+    this.countWork = countWork === true;
+    this.sandbox = new Sandbox(bundle, { maxCallMs: this.limits.maxCallMs, countWork: this.countWork });
     this.timeMs = 0;
     this.seq = new Map(players.map((p) => [p.id, 0]));
     this.result = null;
@@ -107,8 +109,9 @@ export class MatchHost {
   hydrate() {
     const snapshot = this.sandbox.exportState();
     const previous = this.sandbox;
-    this.sandbox = new Sandbox(this.bundle, { maxCallMs: this.limits.maxCallMs });
+    this.sandbox = new Sandbox(this.bundle, { maxCallMs: this.limits.maxCallMs, countWork: this.countWork });
     this.sandbox.callTimes = previous.callTimes;
+    this.sandbox.work = previous.work;
     this.sandbox.logs = previous.logs;
     this.sandbox.importState(snapshot);
   }

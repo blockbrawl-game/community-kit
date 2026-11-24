@@ -48,4 +48,10 @@ A failure prints the seed to reproduce it:
 node devkit/cli.js test my-mode --seed 7 --runs 1
 ```
 
-Two deliberately broken modes in `devkit/fixtures/` show what failures look like: `broken-sync` and `broken-hidden-state`.
+Deliberately broken modes in `devkit/fixtures/` show what failures look like: `broken-sync` and `broken-hidden-state` fail `test`; `broken-heavy` passes `test` but is over budget in `bench`.
+
+## Performance: `bench` and `check`
+
+`test` reports call times on your machine for information. Whether the server accepts the mode's performance is
+decided by `bench`, in work units that are the same on every machine: see [Benchmark](benchmark.md).
+`check` runs `test`, `bench`, the source policy and `build` together, exactly as review does.

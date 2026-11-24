@@ -9,5 +9,8 @@
   "maxActionBytes": 4096,
   "maxActionsPerSecond": 30,
   "maxServerBundleBytes": 262144,
-  "maxClientBytes": 5242880
+  "maxClientBytes": 5242880,
+  "maxWorkPerCall": 1000000,
+  "maxWorkPerSecond": 500000,
+  "workPerByte": 10
 }

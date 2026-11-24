@@ -3,7 +3,7 @@
 1. `npm ci`, then `node devkit/cli.js dev duel-lite` to see how a mode behaves.
 2. Copy a reference mode from `modes/` to `modes/<your-id>/` and change `mode.json` (`id` must equal the folder name).
 3. Develop with `node devkit/cli.js dev <your-id>`; test with `node devkit/cli.js test <your-id>`.
-4. Run `node scripts/check-modes.mjs <your-id>` before opening a PR. CI runs the same script.
+4. Run `node devkit/cli.js check <your-id>` before opening a PR. It runs everything review runs: the source policy, `test`, `bench` (the server's performance gates, in work units that are the same on every machine) and `build`. CI runs the same check.
 5. Open a PR with one mode. Read the checklist in the template.
 
 ## How review works

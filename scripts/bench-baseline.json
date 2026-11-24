@@ -1,0 +1,25 @@
+{
+  "bloom-blocks": {
+    "maxCallUnits": 4671,
+    "unitsPerSecond": 137744
+  },
+  "duel-lite": {
+    "maxCallUnits": 4510,
+    "unitsPerSecond": 205064
+  },
+  "stack-race": {
+    "maxCallUnits": 5545,
+    "unitsPerSecond": 165364
+  },
+  "tap-rush": {
+    "offline": true
+  },
+  "tile-frenzy": {
+    "maxCallUnits": 9369,
+    "unitsPerSecond": 245630
+  },
+  "trail-clash": {
+    "maxCallUnits": 37221,
+    "unitsPerSecond": 75697
+  }
+}
