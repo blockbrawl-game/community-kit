@@ -40,7 +40,14 @@ function summarize(values) {
 
 /** Replays a recorded match in a counting sandbox. Returns the per-call work and the output hash. */
 function countedReplay({ manifest, bundle, players, seed, inputs }) {
-  const host = new MatchHost({ manifest, bundle, players, seed, countWork: true });
+  // What each player is sent: batches and their bytes, as the server would send them today (one batch per call).
+  const sent = { batches: 0, bytes: 0 };
+  const onSend = (playerId, message) => {
+    if (message.kind !== 'steps') return;
+    sent.batches++;
+    sent.bytes += JSON.stringify(message).length;
+  };
+  const host = new MatchHost({ manifest, bundle, players, seed, countWork: true, onSend });
   host.start();
   for (const input of inputs) {
     if (input.op === 'action') host.action(input.playerId, input.actionId, input.action, input.timeMs);
@@ -49,7 +56,7 @@ function countedReplay({ manifest, bundle, players, seed, inputs }) {
   }
   // A join or reconnect costs one sync() per player; count one for each.
   for (const player of players) host.buildSync(player.id);
-  return { work: host.sandbox.work, outputHash: host.outputHash };
+  return { work: host.sandbox.work, outputHash: host.outputHash, sent };
 }
 
 /**
@@ -79,6 +86,8 @@ export async function runBench({ modeName, runs = 10, seed = 1, report = {} }) {
   let countedUnits = 0;
   let codeUnits = 0;
   let dataBytes = 0;
+  let playerSeconds = 0;
+  const sentTotal = { batches: 0, bytes: 0 };
   const failures = [];
 
   for (let run = 0; run < runs; run++) {
@@ -107,7 +116,12 @@ export async function runBench({ modeName, runs = 10, seed = 1, report = {} }) {
       codeUnits += w.units;
       dataBytes += w.bytes;
     }
-    for (const input of host.inputs) if (input.op === 'tick') tickMs += input.dtMs;
+    let runMs = 0;
+    for (const input of host.inputs) if (input.op === 'tick') runMs += input.dtMs;
+    tickMs += runMs;
+    playerSeconds += players.length * (runMs / 1000);
+    sentTotal.batches += counted.sent.batches;
+    sentTotal.bytes += counted.sent.bytes;
     tickUnits += counted.work.filter((w) => w.fn === 'tick').reduce((sum, w) => sum + cost(w), 0);
   }
 
@@ -118,6 +132,13 @@ export async function runBench({ modeName, runs = 10, seed = 1, report = {} }) {
   const actionsPerSecond = manifest.players.max * limits.maxActionsPerSecond * actionP95;
   const perSecond = tickPerSecond + actionsPerSecond;
   const codeShare = countedUnits > 0 ? Math.round((100 * codeUnits) / countedUnits) : 0;
+  // The server's capacity is players, so the same numbers per player: the sustained cost shared by the seats of a
+  // full match, and what the fuzzed matches sent each player per second of match time.
+  const perPlayer = {
+    unitsPerSecond: Math.round(perSecond / manifest.players.max),
+    batchesPerSecond: playerSeconds > 0 ? Math.round((100 * sentTotal.batches) / playerSeconds) / 100 : 0,
+    bytesPerSecond: playerSeconds > 0 ? Math.round(sentTotal.bytes / playerSeconds) : 0,
+  };
 
   if (failures.length === 0) {
     console.log('  cost per call (code units + ' + limits.workPerByte + ' × bytes in and out)');
@@ -135,6 +156,7 @@ export async function runBench({ modeName, runs = 10, seed = 1, report = {} }) {
     if (!callOk) failures.push(`the most expensive call costs ${maxCall} units, over the limit of ${gates.maxWorkPerCall}. Spread the work over ticks or keep less state per call.`);
     if (!secondOk) failures.push(`one match costs ${perSecond} units per second, over the limit of ${gates.maxWorkPerSecond}. Lower the tick rate, do less per tick, or make actions cheaper.`);
     console.log(`\n  Of all cost: ${codeShare}% code, ${100 - codeShare}% data (${dataBytes} bytes over ${runs} matches).`);
+    console.log(`  Per player: ${perPlayer.unitsPerSecond} units, ${perPlayer.batchesPerSecond} batches and ${perPlayer.bytesPerSecond} bytes sent per second.`);
   } else {
     for (const failure of failures) console.log(`  FAIL  ${failure}`);
   }
@@ -150,6 +172,7 @@ export async function runBench({ modeName, runs = 10, seed = 1, report = {} }) {
     actionUnitsP95: actionP95,
     calls,
     codeShare,
+    perPlayer,
     runs,
     seed,
     failures,

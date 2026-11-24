@@ -30,7 +30,7 @@ for (const id of ids) {
   for (const [name, hash] of Object.entries(report.steps.build?.hashes ?? {})) console.log(`${name}: ${hash}`);
 
   const bench = report.steps.bench ?? {};
-  const numbers = bench.offline ? { offline: true } : { maxCallUnits: bench.maxCallUnits, unitsPerSecond: bench.unitsPerSecond };
+  const numbers = bench.offline ? { offline: true } : { maxCallUnits: bench.maxCallUnits, unitsPerSecond: bench.unitsPerSecond, perPlayer: bench.perPlayer };
   if (update) baseline[id] = numbers;
   else if (compare) {
     if (!baseline[id]) fail(id, 'not in scripts/bench-baseline.json; run with --update-baseline');
