@@ -24,6 +24,8 @@ line, fix the cause and run it again. Never report a mode as done, and never loo
 | `npx brawl-modes bench <id>` | Server cost in work units against the server's gates |
 | `npx brawl-modes check <id> [--json]` | Everything review runs: policy, test, bench, build hashes |
 | `npx brawl-modes build <id>` | Writes `modes/<id>/dist/` and prints the hashes a reviewer approves |
+| `npx brawl-modes publish <id>` | Runs `check`, then submits the mode for review (needs `BRAWL_MODES_TOKEN`) |
+| `npx brawl-modes status [<submission> \| <id>] [--wait]` | The state of a submission, a mode's submissions, or your modes |
 
 `<id>` is a folder name under `modes/`, or a path to a mode folder. Every command takes `--json` for one
 machine-readable result object on stdout (the human report goes to stderr).
@@ -77,7 +79,10 @@ client/index.html --game.send(action)--> server.js onAction(state, action, ctx) 
 6. Fill in the store listing in `mode.json` (`name`, `tagline`, `description`, `tags`, `orientation`) and add a
    `thumb.webp`, `thumb.png` or `thumb.jpg` (640 x 360, at most 512 KB).
 7. `npx brawl-modes check <id>` until it prints `READY TO SUBMIT`. Then `npx brawl-modes dev <id>` to play it.
-8. Every later change that you submit needs a new `version` in `mode.json`.
+8. To submit, `npx brawl-modes publish <id>`, then `npx brawl-modes status <submission> --wait`. Publishing needs
+   the creator token in `BRAWL_MODES_TOKEN`; if it is not set, ask the person you work for. Never write the token
+   into a file. Publish only when the person asks you to.
+9. Every later change that you submit needs a higher `version` in `mode.json`.
 
 ## Rules that fail review
 
@@ -124,6 +129,6 @@ loop passes and bytes of steps, and are identical on every machine.
 
 The kit's `docs/` folder (in a workspace: `node_modules/@blockbrawl-game/community-kit/docs/`):
 `getting-started.md`, `interfaces.md`, `steps-and-sync.md`, `prediction.md` (instant feedback for fast modes),
-`benchmark.md`, `limits.md`, `offline-modes.md`, `listing.md`. Working examples are in the kit's `modes/` folder:
+`benchmark.md`, `limits.md`, `offline-modes.md`, `listing.md`, `publishing.md`. Working examples are in the kit's `modes/` folder:
 `duel-lite` (smallest turn-based), `stack-race`, `tile-frenzy` (8 players, 30 ticks), `trail-clash`,
 `bloom-blocks` and `tap-rush` (offline).

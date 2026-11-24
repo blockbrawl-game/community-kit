@@ -10,7 +10,7 @@ mkdir my-modes
 cd my-modes
 npm init -y
 npm pkg set type=module
-npm install --save-exact https://github.com/blockbrawl-game/community-kit/releases/download/v0.6.0/blockbrawl-game-community-kit-0.6.0.tgz
+npm install --save-exact https://github.com/blockbrawl-game/community-kit/releases/download/v0.7.0/blockbrawl-game-community-kit-0.7.0.tgz
 ```
 
 The kit is a GitHub release file, not an npm registry package: no account or token is needed, and npm pins its
@@ -99,4 +99,4 @@ Run any of them by id, for example `npx brawl-modes dev duel-lite`. Their source
 - [prediction.md](prediction.md): making fast modes feel instant.
 - [benchmark.md](benchmark.md): the server's performance gates, in work units.
 - [limits.md](limits.md): the sandbox and every limit.
-- Submitting: see the README's "How a mode goes live".
+- [publishing.md](publishing.md): submitting the mode with `brawl-modes publish`.

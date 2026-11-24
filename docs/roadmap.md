@@ -20,12 +20,15 @@ Where the kit is going, in order. Each step ships as its own release.
 - [getting-started.md](getting-started.md), [offline-modes.md](offline-modes.md), [listing.md](listing.md), a
   README per example, and [CHANGELOG.md](../CHANGELOG.md) with the versioning rules.
 
-## 3. Submitting modes: `brawl-modes publish`
+## 3. Submitting modes: `brawl-modes publish` (done, 0.7.0)
 
-Creators will submit a mode version from their own machine, without opening a pull request here:
-
-- `brawl-modes publish <mode>` uploads the mode's source with a creator token.
-- The server builds it with the pinned kit and runs the same `check` (including `bench`) in an isolated worker.
+- `brawl-modes publish <mode>` runs `check` and uploads the mode's source with a creator token; `brawl-modes status`
+  follows it. See [publishing.md](publishing.md).
+- The game's server builds it with the pinned kit and runs the same `check` in an isolated worker.
 - A person reviews and plays it; approved versions go live without a game release.
 
-Until then, modes are submitted as pull requests to this repository (see [CONTRIBUTING.md](../CONTRIBUTING.md)).
+## Later
+
+- Self-service creator sign-up and `brawl-modes login`, instead of invitations.
+- Approved clients served from the CDN.
+- A docs site.
