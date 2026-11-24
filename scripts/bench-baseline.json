@@ -18,12 +18,12 @@
     }
   },
   "stack-race": {
-    "maxCallUnits": 5545,
-    "unitsPerSecond": 165641,
+    "maxCallUnits": 5555,
+    "unitsPerSecond": 166144,
     "perPlayer": {
-      "unitsPerSecond": 41410,
-      "batchesPerSecond": 12.01,
-      "bytesPerSecond": 1159
+      "unitsPerSecond": 41536,
+      "batchesPerSecond": 11.27,
+      "bytesPerSecond": 1185
     }
   },
   "tap-rush": {
@@ -40,9 +40,9 @@
   },
   "trail-clash": {
     "maxCallUnits": 37201,
-    "unitsPerSecond": 75745,
+    "unitsPerSecond": 75565,
     "perPlayer": {
-      "unitsPerSecond": 18936,
+      "unitsPerSecond": 18891,
       "batchesPerSecond": 8.89,
       "bytesPerSecond": 658
     }

@@ -14,7 +14,7 @@ Real-time falling bars, one well per player, 1 to 4 players. The reference for t
 | | |
 |---|---|
 | Players | 1-4 |
-| Ticks | every 50 ms slot (gravity every 500 ms, speeding up to 200 ms) |
+| Ticks | asleep until the next piece falls (every 500 ms, speeding up to 200 ms) |
 
 ```bash
 npx brawl-modes dev stack-race --players 2

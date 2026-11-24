@@ -52,7 +52,8 @@ Towards the unified runner (one tick for every mode, cheaper calls, per-player c
   `MatchHost.tick(atTimeMs)` replays a tick at its recorded slot; journal tick entries no longer carry `dtMs`.
 - The examples and templates move by time, not by counting ticks: duel-lite and bloom-blocks sleep until their turn
   deadlines, stack-race and trail-clash keep gravity and movement in milliseconds (`speed` steps now carry
-  milliseconds), the realtime template sleeps while nobody moves.
+  milliseconds) and sleep until the next fall or move (2 and 7 calls a second instead of 20), and the realtime
+  template sleeps while nobody moves. tile-frenzy stays awake: something changes on every slot.
 - The fuzz loop advances 100 ms per iteration, slot by slot, with actions between slots. `bench` measures per second
   of match time rather than per second of ticks.
 
