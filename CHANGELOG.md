@@ -25,6 +25,24 @@ re-approved with the new kit. Every entry below says whether build output change
 
 **Work units.** `bench` numbers are part of the contract too: an entry says when they change.
 
+## Unreleased
+
+Towards the unified runner (one tick for every mode, cheaper calls, per-player costs).
+
+- **Prelude wire format v2** (`runtime/prelude.js`, `devkit/wire.js`). Calls take plain arguments
+  (`tick(dt, t)`, `action(playerIndex, actionText, t)`, `status(playerIndex, status, t)`, `sync(playerIndex)`) and
+  return length-framed records instead of JSON. A call that does nothing returns the empty string. The prelude
+  captures the built-ins it uses before a mode runs, so a mode that replaces `JSON` or array methods can no longer
+  forge what the host reads, and it parses the action text itself (invalid JSON is rejected as `invalid_action`), so
+  a client cannot splice anything into the call. The server (BlockBrawl) reads the same format.
+- `WeakRef` and `FinalizationRegistry` are removed in the runtime and refused by the source policy: they expose
+  garbage collection timing.
+- `bench` reports `perPlayer`: units, batches and bytes per player-second; the baseline includes them.
+- The output hash now skips calls that return nothing, on both hosts.
+
+Build output: unchanged. Work units and bytes: unchanged (the bench measures a mode's bytes as before). The
+parity recordings' output hashes changed with the wire format; their state hashes are unchanged.
+
 ## 0.7.0
 
 Submitting modes to the game: the mode registry.

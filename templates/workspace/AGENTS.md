@@ -89,7 +89,7 @@ client/index.html --game.send(action)--> server.js onAction(state, action, ctx) 
 | Rule | Why | Do this instead |
 |---|---|---|
 | No `Math.random` in any source (server or client) of an online mode | Replays and restores must give identical results | `ctx.rng.next()`, `int(n)`, `pick(a)`, `shuffle(a)` on the server; a small seeded generator in the client for visual effects |
-| No `eval`, `new Function`, dynamic `import()`, network (`fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `sendBeacon`), workers, typed arrays (`ArrayBuffer`, `Uint8Array`, `DataView` ...) | Not available in the sandbox | Plain arrays and objects; everything the client needs is imported from the mode folder |
+| No `eval`, `new Function`, dynamic `import()`, network (`fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `sendBeacon`), workers, typed arrays (`ArrayBuffer`, `Uint8Array`, `DataView` ...), `WeakRef`, `FinalizationRegistry` | Not available in the sandbox | Plain arrays and objects; everything the client needs is imported from the mode folder |
 | No match data outside `state` (module-level `let`, caches, closures) | The match moves between sandboxes; that data is lost and `test` reports `hydration` | Keep it in `state`; module-level `const` lookup tables are fine |
 | Validate before mutating in `onAction` | A rejected action must leave state exactly as it was (`fuzz: a rejected action changed state`) | All `throw reject('reason')` checks first, then change state |
 | Every visible change has a step | Otherwise `sync` and live clients differ (`sync: ... differs`) | Emit a step wherever state that a client shows changes |

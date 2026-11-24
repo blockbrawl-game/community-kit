@@ -32,7 +32,7 @@ export class MatchHost {
     this.limits = { ...defaultLimits, ...limits };
 
     this.countWork = countWork === true;
-    this.sandbox = new Sandbox(bundle, { maxCallMs: this.limits.maxCallMs, countWork: this.countWork });
+    this.sandbox = this.#newSandbox();
     this.timeMs = 0;
     this.seq = new Map(players.map((p) => [p.id, 0]));
     this.result = null;
@@ -49,7 +49,18 @@ export class MatchHost {
   }
 
   start() {
-    this.#run('setup', { players: this.players, seed: this.seed, limits: { maxStepsPerCall: this.limits.maxStepsPerCall } }, {});
+    const input = JSON.stringify({ players: this.players, seed: this.seed, limits: { maxStepsPerCall: this.limits.maxStepsPerCall } });
+    this.#run('setup', [input], {});
+  }
+
+  #newSandbox() {
+    const sandbox = new Sandbox(this.bundle, { maxCallMs: this.limits.maxCallMs, countWork: this.countWork });
+    sandbox.playerIds = this.players.map((p) => p.id);
+    return sandbox;
+  }
+
+  #indexOf(playerId) {
+    return this.players.findIndex((p) => p.id === playerId);
   }
 
   /** @param {number} [atTimeMs] match clock for tickless modes; ignored if earlier than the current clock */
@@ -63,31 +74,38 @@ export class MatchHost {
       return;
     }
     this.inputs.push({ op: 'action', playerId, actionId, action, timeMs: this.timeMs });
-    this.#run('action', { playerId, action, timeMs: this.timeMs }, { actorId: playerId, actionId });
+    const actionText = action === undefined ? undefined : JSON.stringify(action);
+    this.#run('action', [this.#indexOf(playerId), actionText, this.timeMs], { actorId: playerId, actionId });
   }
 
   tick(dtMs) {
     if (this.ended) return;
     this.timeMs += dtMs;
     this.inputs.push({ op: 'tick', dtMs, timeMs: this.timeMs });
-    this.#run('tick', { dtMs, timeMs: this.timeMs }, {});
+    this.#run('tick', [dtMs, this.timeMs], {});
   }
 
   /** @param {'disconnected' | 'reconnected' | 'forfeited'} status */
   setStatus(playerId, status) {
     if (this.ended) return;
     this.inputs.push({ op: 'status', playerId, status, timeMs: this.timeMs });
-    this.#run('status', { playerId, status, timeMs: this.timeMs }, {});
+    this.#run('status', [this.#indexOf(playerId), status, this.timeMs], {});
   }
 
   /** Builds the full catch-up message for one player without sending it. */
   buildSync(playerId) {
-    const { out } = this.#call('sync', { playerId });
+    let steps;
+    try {
+      steps = this.sandbox.sync(this.#indexOf(playerId));
+    } catch (error) {
+      if (error instanceof ModeError) this.#abort(error.message);
+      throw error;
+    }
     return {
       kind: 'sync',
       seq: this.seq.get(playerId),
       timeMs: this.timeMs,
-      steps: out.steps,
+      steps,
       info: { modeId: this.manifest.id, version: this.manifest.version, you: playerId, players: this.players },
     };
   }
@@ -109,7 +127,7 @@ export class MatchHost {
   hydrate() {
     const snapshot = this.sandbox.exportState();
     const previous = this.sandbox;
-    this.sandbox = new Sandbox(this.bundle, { maxCallMs: this.limits.maxCallMs, countWork: this.countWork });
+    this.sandbox = this.#newSandbox();
     this.sandbox.callTimes = previous.callTimes;
     this.sandbox.work = previous.work;
     this.sandbox.logs = previous.logs;
@@ -120,28 +138,31 @@ export class MatchHost {
     return createHash('sha256').update(this.exportState()).digest('hex');
   }
 
-  #call(fn, input) {
+  #call(fn, args) {
     try {
-      return this.sandbox.call(fn, input);
+      return this.sandbox.call(fn, args);
     } catch (error) {
       if (error instanceof ModeError) this.#abort(error.message);
       throw error;
     }
   }
 
-  #run(fn, input, { actorId, actionId }) {
-    const { out, raw } = this.#call(fn, input);
-    this.outputHash = createHash('sha256').update(this.outputHash).update(raw).digest('hex');
+  #run(fn, args, { actorId, actionId }) {
+    const { out, raw } = this.#call(fn, args);
+    // An empty output (nothing happened) leaves the hash as it is, on the server as here.
+    if (raw !== '') this.outputHash = createHash('sha256').update(this.outputHash).update(raw).digest('hex');
 
-    if (out.rejected) {
+    if (out.rejected !== null) {
       if (actorId) this.#send(actorId, { kind: 'rejected', actionId, reason: out.rejected });
       return;
     }
 
-    for (const player of this.players) {
+    const parsed = out.steps.map((entry) => ({ to: entry.to, step: JSON.parse(entry.json) }));
+    for (let index = 0; index < this.players.length; index++) {
+      const player = this.players[index];
       const steps = [];
-      for (const entry of out.steps) {
-        if (entry.to === null || entry.to === player.id) steps.push(entry.step);
+      for (const entry of parsed) {
+        if (entry.to === -1 || entry.to === index) steps.push(entry.step);
       }
       const isActor = player.id === actorId;
       if (steps.length === 0 && !isActor) continue;
@@ -160,9 +181,9 @@ export class MatchHost {
       this.#send(player.id, batch);
     }
 
-    if (out.result) {
-      this.result = out.result;
-      for (const player of this.players) this.#send(player.id, { kind: 'result', result: out.result });
+    if (out.resultJson !== null) {
+      this.result = JSON.parse(out.resultJson);
+      for (const player of this.players) this.#send(player.id, { kind: 'result', result: this.result });
     }
   }
 

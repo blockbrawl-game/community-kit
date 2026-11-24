@@ -68,6 +68,7 @@ and fails on any match:
 | `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `sendBeacon` | Modes have no network |
 | `Worker`, `SharedWorker`, `ServiceWorker` | Not available in the frame |
 | `ArrayBuffer`, `SharedArrayBuffer`, typed arrays, `DataView` | Removed in the server runtime |
+| `WeakRef`, `FinalizationRegistry` | They reveal garbage collection timing, which is not deterministic; removed in the server runtime |
 | `Math.random` (online modes only) | Replays must be identical; use `ctx.rng` |
 
 It is a plain text search, so it also matches those words in comments and strings. Rephrase them ("download"
