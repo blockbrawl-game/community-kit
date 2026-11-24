@@ -20,7 +20,7 @@ Requires Node 20 or newer. In an empty folder:
 ```bash
 npm init -y
 npm pkg set type=module
-npm install --save-exact https://github.com/blockbrawl-game/community-kit/releases/download/v0.6.0/blockbrawl-game-community-kit-0.6.0.tgz
+npm install --save-exact https://github.com/blockbrawl-game/community-kit/releases/download/v0.7.0/blockbrawl-game-community-kit-0.7.0.tgz
 npx brawl-modes new my-mode --template turn
 npx brawl-modes check my-mode
 npx brawl-modes dev my-mode
@@ -38,6 +38,8 @@ plus `AGENTS.md`, `CLAUDE.md` and `jsconfig.json` for your assistant and editor.
 | `brawl-modes bench <mode>` | Server cost in work units, the same on every machine, against the server's gates |
 | `brawl-modes check <mode>` | Everything review runs, with one verdict: run this before submitting |
 | `brawl-modes build <mode>` | Writes `modes/<mode>/dist` and prints the hashes a reviewer pins |
+| `brawl-modes publish <mode>` | Runs `check` and submits the mode for review, with your creator token |
+| `brawl-modes status [<submission> \| <mode>]` | Where a submission is: checking, ready for review, approved, ... |
 
 Every command takes `--json` for one machine-readable result object on stdout. A mode id is looked up in your
 `./modes` first, then in this kit's examples, so `npx brawl-modes dev duel-lite` works anywhere.
@@ -47,7 +49,7 @@ Every command takes `--json` for one machine-readable result object on stdout. A
 Every release is a git tag (`vX.Y.Z`) with a GitHub release that has the packed kit attached. There is no npm
 registry package and no token is needed. npm pins the release file's integrity hash in your lockfile, and it needs
 neither git nor an SSH key, so it also works in container builds. (`npm install
-github:blockbrawl-game/community-kit#v0.6.0` works too, but records a `git+ssh` URL that needs git and GitHub SSH
+github:blockbrawl-game/community-kit#v0.7.0` works too, but records a `git+ssh` URL that needs git and GitHub SSH
 access on every machine that runs `npm ci`.) What changed in each release: [CHANGELOG.md](CHANGELOG.md).
 
 ### Working in this repository
@@ -103,15 +105,18 @@ Start with `brawl-modes new`. Every example has a README saying what it teaches.
 - [Benchmark](docs/benchmark.md): work units, the server's two performance gates, and how to get under them.
 - [Offline modes](docs/offline-modes.md): single-player modes with no server.
 - [The store listing](docs/listing.md): name, tagline, description, tags and thumbnail.
+- [Publishing](docs/publishing.md): submitting a mode with `brawl-modes publish`, and what review does.
 - [Roadmap](docs/roadmap.md): what is coming for mode developers, in order.
 
 ## How a mode goes live
 
-1. Open a pull request with one mode under `modes/<your-id>/`. CI runs `node scripts/check-modes.mjs`, which runs `brawl-modes check` on every mode.
-2. A maintainer reads the code and plays the mode.
-3. The game server pins each accepted mode by the hash of its build. Merging here does **not** put a mode live, and an update only goes live after the same review.
+1. `brawl-modes check <mode>` prints `READY TO SUBMIT`.
+2. `brawl-modes publish <mode>` submits it with your creator token (creators are invited for now). The game's server
+   builds it with this kit and runs the same `check` in an isolated worker.
+3. A maintainer reads the code and plays the mode, then approves it. It goes live without a game release, and every
+   update is a new version, reviewed again. See [docs/publishing.md](docs/publishing.md).
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) first.
+Example modes and kit changes still come here as pull requests; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Releases
 

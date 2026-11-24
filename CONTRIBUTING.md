@@ -1,4 +1,9 @@
-# Contributing a mode
+# Contributing
+
+To put your own mode in the game, publish it: `brawl-modes publish` ([docs/publishing.md](docs/publishing.md)).
+This repository takes pull requests for the kit itself and for example modes.
+
+## Contributing an example mode
 
 1. `npm ci`, then `node devkit/cli.js dev duel-lite` to see how a mode behaves.
 2. `node devkit/cli.js new <your-id> --template turn|realtime|offline` creates `modes/<your-id>/` from a template that

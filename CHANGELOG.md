@@ -25,6 +25,21 @@ re-approved with the new kit. Every entry below says whether build output change
 
 **Work units.** `bench` numbers are part of the contract too: an entry says when they change.
 
+## 0.7.0
+
+Submitting modes to the game: the mode registry.
+
+- **`brawl-modes publish <mode>`**: runs `check`, packs the mode's source (not `dist/`, `node_modules/` or hidden
+  files) as a reproducible `.tar.gz` and uploads it to the game's registry with the creator token in
+  `BRAWL_MODES_TOKEN`. `--server` or `BRAWL_MODES_SERVER` picks another server; `--skip-check` uploads without
+  checking first.
+- **`brawl-modes status [<submission> | <mode>] [--wait]`**: a submission's state and reasons, a mode's recent
+  submissions, or your modes and their live versions.
+- **`docs/publishing.md`**: tokens, the states of a submission, what the server does, and the rules (versions,
+  ownership, 10 submissions an hour). The agent guide lists the new commands and says to publish only when asked.
+
+Build output: unchanged. Work units: unchanged.
+
 ## 0.6.0
 
 Agent-first developer support.

@@ -18,7 +18,7 @@ In this repository `npx brawl-modes <command>` is `node devkit/cli.js <command>`
 | `sdk/` | `server.js` (`defineMode`, `reject`), `client.js` (`connect`), `offline.js` (`connectOffline`), `types.d.ts` | Mode code, bundled into every mode |
 | `runtime/` | `prelude.js` (the sandbox side of the server runtime) and `limits.json` (every limit) | Embedded by the game server; changing them changes the server |
 | `shell/` | The play page that hosts a mode frame | Embedded by the game gateway |
-| `devkit/` | The `brawl-modes` CLI: `new`, `dev`, `test`, `bench`, `check`, `build` | Creators and the review server |
+| `devkit/` | The `brawl-modes` CLI: `new`, `dev`, `test`, `bench`, `check`, `build`, `publish`, `status` | Creators and the review server |
 | `templates/` | `turn`, `realtime`, `offline` and the `workspace` files `new` writes | `brawl-modes new` |
 | `schema/mode.schema.json` | JSON schema of `mode.json` | Editors; must agree with `validateManifest` in `devkit/build.js` |
 | `modes/` | The example modes, which are also the reference for the docs | Everyone |
@@ -56,6 +56,8 @@ node devkit/cli.js check duel-lite             # one mode
   a test fails when they differ.
 - **Docs follow the code.** A new command, flag, limit or rule goes into `README.md`, the relevant page in
   `docs/`, the agent guide and `CHANGELOG.md` in the same change.
+- **The registry API is a contract.** `devkit/publish.js` talks to the game's `/api/creator` endpoints (in the
+  game repository). Change both together, and keep old kits working.
 - No new runtime dependencies without a reason: every creator installs them.
 
 ## Releases

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The `brawl-modes` command line: new, dev, test, bench, check, build.
+// The `brawl-modes` command line: new, dev, test, bench, check, build, publish, status.
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { bundleClient, bundleServer, hashText, isOffline, limits, loadMode } from './build.js';
@@ -14,13 +14,17 @@ Usage:
   brawl-modes bench <mode> [--runs 10] [--seed N] [--json]
   brawl-modes check <mode> [--json]
   brawl-modes build <mode> [--out dir] [--json]
+  brawl-modes publish <mode> [--server https://api.block-brawl.com] [--json]
+  brawl-modes status [<submission> | <mode>] [--wait] [--json]
 
-new    creates ./modes/<id> from a template that passes check (turn is the default; --offline is --template offline)
-dev    plays the mode in the browser, every player side by side
-test   fuzz, sync, determinism, hydration and size checks
-bench  server cost in work units, the same on every machine, against the server's gates
-check  everything review runs (policy, test, bench, build); a mode is ready when it prints READY TO SUBMIT
-build  writes the built mode to <mode>/dist and prints the hashes a reviewer approves
+new      creates ./modes/<id> from a template that passes check (turn is the default; --offline is --template offline)
+dev      plays the mode in the browser, every player side by side
+test     fuzz, sync, determinism, hydration and size checks
+bench    server cost in work units, the same on every machine, against the server's gates
+check    everything review runs (policy, test, bench, build); a mode is ready when it prints READY TO SUBMIT
+build    writes the built mode to <mode>/dist and prints the hashes a reviewer approves
+publish  runs check, then uploads the mode's source to the game's registry for review (needs BRAWL_MODES_TOKEN)
+status   your modes, one mode's submissions, or one submission (--wait until its check is done)
 
 <mode> is a mode id under your ./modes folder, or a path to a mode folder.
 A mode with "runtime": "offline" in mode.json has no server: dev serves only its client, test checks only its build.
@@ -28,7 +32,7 @@ A mode with "runtime": "offline" in mode.json has no server: dev serves only its
 Docs: https://github.com/blockbrawl-game/community-kit/tree/main/docs`;
 
 // Flags that never take a value, so `new --offline my-mode` keeps my-mode as the id.
-const BOOLEAN_FLAGS = new Set(['json', 'offline', 'remote', 'help']);
+const BOOLEAN_FLAGS = new Set(['json', 'offline', 'remote', 'help', 'wait', 'skip-check']);
 
 function parseArgs(argv) {
   const positional = [];
@@ -57,6 +61,14 @@ const printResult = console.log.bind(console);
 if (json) console.log = console.error.bind(console);
 
 try {
+  if (command === 'status' && !flags.help) {
+    const { runStatus } = await import('./publish.js');
+    const report = {};
+    const ok = await runStatus({ target: modeName, flags, report });
+    if (json) printResult(JSON.stringify(report));
+    process.exit(ok ? 0 : 1);
+  }
+
   if (!command || !modeName || flags.help) {
     console.log(USAGE);
     process.exit(command ? 1 : 0);
@@ -138,6 +150,12 @@ try {
       seed: intFlag(flags.seed, 'seed'),
       report,
     });
+    if (json) printResult(JSON.stringify(report));
+    process.exit(passed ? 0 : 1);
+  } else if (command === 'publish') {
+    const { runPublish } = await import('./publish.js');
+    const report = {};
+    const passed = await runPublish({ modeName, flags, report });
     if (json) printResult(JSON.stringify(report));
     process.exit(passed ? 0 : 1);
   } else if (command === 'build') {
