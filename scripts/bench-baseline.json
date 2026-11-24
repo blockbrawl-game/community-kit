@@ -4,8 +4,8 @@
     "unitsPerSecond": 135240,
     "perPlayer": {
       "unitsPerSecond": 67620,
-      "batchesPerSecond": 6.41,
-      "bytesPerSecond": 905
+      "batchesPerSecond": 6.14,
+      "bytesPerSecond": 879
     }
   },
   "duel-lite": {
@@ -22,20 +22,20 @@
     "unitsPerSecond": 166144,
     "perPlayer": {
       "unitsPerSecond": 41536,
-      "batchesPerSecond": 11.27,
-      "bytesPerSecond": 1185
+      "batchesPerSecond": 11.18,
+      "bytesPerSecond": 1171
     }
   },
   "tap-rush": {
     "offline": true
   },
   "tile-frenzy": {
-    "maxCallUnits": 9309,
-    "unitsPerSecond": 241026,
+    "maxCallUnits": 9329,
+    "unitsPerSecond": 238629,
     "perPlayer": {
-      "unitsPerSecond": 30128,
-      "batchesPerSecond": 27.22,
-      "bytesPerSecond": 2677
+      "unitsPerSecond": 29829,
+      "batchesPerSecond": 18.78,
+      "bytesPerSecond": 2237
     }
   },
   "trail-clash": {
@@ -43,8 +43,8 @@
     "unitsPerSecond": 75565,
     "perPlayer": {
       "unitsPerSecond": 18891,
-      "batchesPerSecond": 8.89,
-      "bytesPerSecond": 658
+      "batchesPerSecond": 8.44,
+      "bytesPerSecond": 636
     }
   }
 }

@@ -57,6 +57,16 @@ Towards the unified runner (one tick for every mode, cheaper calls, per-player c
 - The fuzz loop advances 100 ms per iteration, slot by slot, with actions between slots. `bench` measures per second
   of match time rather than per second of ticks.
 
+- **The outbox** (`devkit/outbox.js`, the server's `MatchOutbox`). Each player's steps wait and are sent merged, one
+  batch per player per flush, numbered when sent: the actor's acknowledgement goes out at once (after that player's
+  pending steps), a rejection, sync, result or abort flushes what it concerns first, and the rest goes out at the
+  end of the next tick, or at once when no tick is due within the next slot. Merged batches stay within the batch
+  limit. tile-frenzy at 8 players: 19 batches per player-second instead of 27. On the server, each flush is one
+  stream message, and players with the same steps share one entry in it.
+- The batch limit is now on a call's steps for one player (16 KB minus 128 bytes for the envelope), on both hosts.
+- Recordings are format 2 and carry `expect.wireHash`: what every player was sent, in order, which the server's
+  parity tests compare. `test` checks that it survives sandbox restarts too.
+
 This is not backward compatible and was not meant to be: SDK `0.1` has not shipped to creators yet, so it changes in
 place.
 

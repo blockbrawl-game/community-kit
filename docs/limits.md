@@ -25,7 +25,7 @@ Defined in [`runtime/limits.json`](../runtime/limits.json).
 | Time per call, p99 | 5 ms | warning in `brawl-modes test` |
 | State size | 256 KB | match is aborted |
 | Steps per call | 256 | match is aborted |
-| Step batch size | 16 KB | match is aborted |
+| Step batch size | 16 KB, of which 128 bytes are kept for the envelope: one call's steps for one player must fit in 16,256 | match is aborted |
 | Action size | 4 KB | action is rejected |
 | Server bundle | 256 KB | fails `brawl-modes test` |
 | Built client | 5 MB | fails `brawl-modes test` |

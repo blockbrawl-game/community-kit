@@ -84,6 +84,8 @@ export function fuzzRun({ mode, bundle, createModel, nextAction, seed, playerCou
   });
 
   function checkSync(playerId, when) {
+    // The live client must have everything the state has: send what waits in the outbox first.
+    host.flush();
     const fresh = createModel();
     const message = host.buildSync(playerId);
     fresh.applySync(message.steps, message.info);
@@ -181,7 +183,7 @@ function replay({ mode, bundle, players, seed, inputs, hydrateEvery }) {
     else if (input.op === 'tick') host.tick(input.timeMs);
     else if (input.op === 'status') host.setStatus(input.playerId, input.status);
   });
-  return { outputHash: host.outputHash, stateHash: host.stateHash() };
+  return { outputHash: host.outputHash, stateHash: host.stateHash(), wireHash: host.wireHash };
 }
 
 function percentile(sorted, p) {
@@ -274,7 +276,8 @@ async function runChecks({ modeName, runs = 20, seed = 1, recordFile }, report) 
         const again = replay(args);
         if (again.outputHash !== run.outputHash || again.stateHash !== run.stateHash) deterministic = false;
         const moved = replay({ ...args, hydrateEvery: 37 });
-        if (moved.outputHash !== run.outputHash || moved.stateHash !== run.stateHash) hydrates = false;
+        // What players receive must not depend on the sandbox being restarted either.
+        if (moved.outputHash !== run.outputHash || moved.stateHash !== run.stateHash || moved.wireHash !== again.wireHash) hydrates = false;
       } catch (error) {
         hydrates = false;
         console.log(`      replay threw: ${error.message}`);
@@ -307,17 +310,19 @@ async function runChecks({ modeName, runs = 20, seed = 1, recordFile }, report) 
 
     if (recordFile && completed.length > 0 && failures.length === 0) {
       const first = completed[0];
+      // The wire hash comes from a replay: the live run above also flushed the outbox for its sync checks.
+      const { wireHash } = replay({ mode, bundle, players: first.players, seed: first.seed, inputs: first.inputs });
       const file = path.resolve(recordFile);
       await mkdir(path.dirname(file), { recursive: true });
       await writeFile(file, JSON.stringify({
-        format: 1,
+        format: 2,
         modeId: manifest.id,
         version: manifest.version,
         seed: first.seed,
         players: first.players,
         limits: { maxStepsPerCall: limits.maxStepsPerCall },
         inputs: first.inputs,
-        expect: { outputHash: first.outputHash, stateHash: first.stateHash },
+        expect: { outputHash: first.outputHash, stateHash: first.stateHash, wireHash },
       }));
       console.log(`\n  Recorded seed ${first.seed} (${first.inputs.length} inputs) to ${file}`);
     }

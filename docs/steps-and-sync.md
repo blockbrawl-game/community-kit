@@ -12,7 +12,10 @@ The server never sends its state. It sends **steps**: small facts about what cha
 
 - Batches are numbered per player. If one is lost, the shell notices the gap, asks for a sync and hands the model a fresh `applySync`. You never see a broken stream.
 - A joining or reconnecting player always starts with `applySync`.
-- A batch caused by a player's own action carries `ackActionId`.
+- A batch caused by a player's own action carries `ackActionId`, and goes out at once.
+- Everyone else's copy of those steps may wait for the next tick (at most 50 ms while the mode is awake) and arrive
+  merged with other steps in one batch. A batch is a list of steps in order, so `applySteps` handles a merged one like
+  any other. A mode that sleeps sends at once: nothing would come to merge with.
 
 You only write `sync` on the server and `applySync` / `applySteps` on the client.
 
