@@ -74,6 +74,9 @@ The examples:
   Of all cost: 7% code, 93% data
 ```
 
+To see a failure, run `npx brawl-modes bench broken-heavy`: that fixture recounts a 150 × 150 grid on every
+action instead of keeping a running total, and comes out at about 1.4 million units per match-second.
+
 When you are over budget, the breakdown says where to look:
 
 - **Ticks per second is large**: do less per tick, lower `tickRate`, or only emit steps for what changed.

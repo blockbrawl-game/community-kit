@@ -48,7 +48,7 @@ A failure prints the seed to reproduce it:
 node devkit/cli.js test my-mode --seed 7 --runs 1
 ```
 
-Two deliberately broken modes in `devkit/fixtures/` show what failures look like: `broken-sync` and `broken-hidden-state`.
+Deliberately broken modes in `devkit/fixtures/` show what failures look like: `broken-sync` and `broken-hidden-state` fail `test`; `broken-heavy` passes `test` but is over budget in `bench`.
 
 ## Performance: `bench` and `check`
 
