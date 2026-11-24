@@ -45,12 +45,6 @@
       },
       "description": "How many players a match has: 1 <= min <= max <= 8. Offline modes use 1 and 1."
     },
-    "tickRate": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 30,
-      "description": "Server ticks per second (onTick). 0 for turn-based modes. Required for online modes. Higher costs more: see docs/benchmark.md."
-    },
     "orientation": {
       "enum": ["portrait", "landscape", "any"],
       "default": "any",
@@ -63,5 +57,5 @@
   },
   "if": { "properties": { "runtime": { "const": "offline" } }, "required": ["runtime"] },
   "then": { "not": { "anyOf": [{ "required": ["server"] }, { "required": ["clientModel"] }, { "required": ["fuzz"] }] } },
-  "else": { "required": ["tickRate", "server", "clientModel"] }
+  "else": { "required": ["server", "clientModel"] }
 }

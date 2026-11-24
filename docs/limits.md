@@ -20,12 +20,12 @@ Defined in [`runtime/limits.json`](../runtime/limits.json).
 
 | Limit | Value | What happens when exceeded |
 | --- | --- | --- |
-| Tick rate | 30 per second | mode.json is rejected |
+| Ticks | every 50 ms while awake, the same for every mode | (not a limit: see `ctx.sleepUntil`) |
 | Time per call | 250 ms watchdog | match is aborted |
 | Time per call, p99 | 5 ms | warning in `brawl-modes test` |
 | State size | 256 KB | match is aborted |
 | Steps per call | 256 | match is aborted |
-| Step batch size | 16 KB | match is aborted |
+| Step batch size | 16 KB, of which 128 bytes are kept for the envelope: one call's steps for one player must fit in 16,256 | match is aborted |
 | Action size | 4 KB | action is rejected |
 | Server bundle | 256 KB | fails `brawl-modes test` |
 | Built client | 5 MB | fails `brawl-modes test` |
@@ -68,6 +68,7 @@ and fails on any match:
 | `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `sendBeacon` | Modes have no network |
 | `Worker`, `SharedWorker`, `ServiceWorker` | Not available in the frame |
 | `ArrayBuffer`, `SharedArrayBuffer`, typed arrays, `DataView` | Removed in the server runtime |
+| `WeakRef`, `FinalizationRegistry` | They reveal garbage collection timing, which is not deterministic; removed in the server runtime |
 | `Math.random` (online modes only) | Replays must be identical; use `ctx.rng` |
 
 It is a plain text search, so it also matches those words in comments and strings. Rephrase them ("download"

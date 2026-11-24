@@ -6,7 +6,7 @@
 import { defineMode, reject } from '@blockbrawl/mode-sdk/server';
 import {
   MATCH_MS, SHRINK_AT_MS, SHRINK_EVERY_MS, SIZE,
-  advance, canTurn, moveTicksAt, ranking, shrink, startGrid, startPlayers,
+  advance, canTurn, moveMsAt, ranking, shrink, startGrid, startPlayers,
 } from './shared.js';
 
 function aliveCount(state) {
@@ -23,21 +23,35 @@ function checkOver(state, ctx) {
   }
 }
 
+/**
+ * Sleeps until the next move, shrink or the end of the match: trails move every 100-150 ms, so most 50 ms slots have
+ * nothing to do. moveIn counts from the last tick (state.tickAt), whatever call this is.
+ */
+function rest(state, ctx) {
+  if (state.over) return ctx.sleep();
+  let next = Math.min(MATCH_MS, state.tickAt + state.moveIn);
+  if (state.ring < SIZE / 2 - 2) next = Math.min(next, state.nextShrinkMs);
+  ctx.sleepUntil(next);
+}
+
 export default defineMode({
   setup(ctx) {
     const players = startPlayers(ctx.players.length);
-    return {
+    const state = {
       order: ctx.players.map((p) => p.id),
       grid: startGrid(players),
       players,
       queues: players.map(() => []),
-      moveTicks: moveTicksAt(0),
-      moveIn: moveTicksAt(0),
+      moveMs: moveMsAt(0),
+      moveIn: moveMsAt(0),
+      tickAt: 0,
       moves: 0,
       ring: -1,
       nextShrinkMs: SHRINK_AT_MS,
       over: false,
     };
+    rest(state, ctx);
+    return state;
   },
 
   onAction(state, action, ctx) {
@@ -52,15 +66,17 @@ export default defineMode({
     if (!canTurn(heading, action.d)) throw reject('bad_turn');
     queue.push(action.d);
     ctx.emit({ t: 'q', p, d: action.d }); // lets other clients show where a trail is about to go
+    rest(state, ctx);
   },
 
   onTick(state, dtMs, ctx) {
-    if (state.over) return;
+    state.tickAt = ctx.timeMs;
+    if (state.over) return rest(state, ctx);
 
-    const moveTicks = moveTicksAt(ctx.timeMs);
-    if (moveTicks !== state.moveTicks) {
-      state.moveTicks = moveTicks;
-      ctx.emit({ t: 'speed', n: moveTicks });
+    const moveMs = moveMsAt(ctx.timeMs);
+    if (moveMs !== state.moveMs) {
+      state.moveMs = moveMs;
+      ctx.emit({ t: 'speed', n: moveMs });
     }
 
     if (ctx.timeMs >= state.nextShrinkMs && state.ring < SIZE / 2 - 2) {
@@ -69,27 +85,31 @@ export default defineMode({
       shrink(state.grid, state.players, state.ring, state.moves);
       ctx.emit({ t: 'shrink' });
       checkOver(state, ctx);
-      if (state.over) return;
+      if (state.over) return rest(state, ctx);
     }
 
-    if (--state.moveIn > 0) return;
-    state.moveIn = state.moveTicks;
+    // Movement in time, not ticks: a late tick (larger dtMs) still moves the trails at most one cell.
+    state.moveIn -= dtMs;
+    if (state.moveIn > 0) return rest(state, ctx);
+    state.moveIn = state.moveMs;
     const dirs = state.players.map((pl, p) => (state.queues[p].length ? state.queues[p].shift() : pl.dir));
     state.moves++;
     advance(state.grid, state.players, dirs, state.moves);
     ctx.emit({ t: 'mv', d: dirs });
     checkOver(state, ctx);
+    rest(state, ctx);
   },
 
   onPlayerStatus(state, playerId, status, ctx) {
-    if (status !== 'forfeited' || state.over) return;
     const p = state.order.indexOf(playerId);
     const pl = state.players[p];
-    if (!pl || !pl.alive) return;
-    pl.alive = false;
-    pl.diedAt = state.moves;
-    ctx.emit({ t: 'die', p });
-    checkOver(state, ctx);
+    if (status === 'forfeited' && !state.over && pl && pl.alive) {
+      pl.alive = false;
+      pl.diedAt = state.moves;
+      ctx.emit({ t: 'die', p });
+      checkOver(state, ctx);
+    }
+    rest(state, ctx);
   },
 
   sync(state) {
@@ -101,7 +121,7 @@ export default defineMode({
       queues: state.queues,
       moves: state.moves,
       ring: state.ring,
-      moveTicks: state.moveTicks,
+      moveMs: state.moveMs,
       endsAt: MATCH_MS,
       over: state.over,
     }];

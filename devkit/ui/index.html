@@ -223,7 +223,7 @@ events.onmessage = (raw) => {
 async function poll() {
   try {
     const s = await (await fetch('/api/state')).json();
-    $('meta').textContent = `match ${s.matchNumber} · seed ${s.seed} · ${info.manifest.tickRate} ticks/s${s.result ? ' · finished' : ''}${s.aborted ? ' · aborted' : ''}`;
+    $('meta').textContent = `match ${s.matchNumber} · seed ${s.seed} ${s.result ? ' · finished' : ''}${s.aborted ? ' · aborted' : ''}`;
     $('sTime').textContent = `${(s.timeMs / 1000).toFixed(1)} s`;
     $('sState').textContent = fmtBytes(s.stateBytes);
     $('sCall').textContent = s.callMs ? `${s.callMs.p50.toFixed(2)} / ${s.callMs.p99.toFixed(2)} ms` : '–';

@@ -54,9 +54,9 @@ test('a mode can neither read nor reset the counter', () => {
       result() { return null; },
     } };`;
   const sandbox = new Sandbox(bundle, { countWork: true });
-  sandbox.call('setup', { players: [{ id: 'a', name: 'A', isBot: false }], seed: 1, limits: { maxStepsPerCall: 256 } });
-  sandbox.call('action', { playerId: 'a', action: {}, timeMs: 0 });
-  sandbox.call('action', { playerId: 'a', action: {}, timeMs: 0 });
+  sandbox.call('setup', [JSON.stringify({ players: [{ id: 'a', name: 'A', isBot: false }], seed: 1, limits: { maxStepsPerCall: 256 } })]);
+  sandbox.call('action', [0, '{}', 0]);
+  sandbox.call('action', [0, '{}', 0]);
   const actions = sandbox.work.filter((w) => w.fn === 'action').map((w) => w.units);
   assert.equal(actions.length, 2);
   assert.ok(actions[1] >= 100, `second action still counted: ${actions[1]}`);

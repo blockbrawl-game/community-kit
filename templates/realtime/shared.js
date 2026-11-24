@@ -3,6 +3,7 @@
 export const SIZE = 9;
 export const WIN_COINS = 5;
 export const MATCH_MS = 60_000;
+export const STEP_MS = 100; // a moving player advances one cell this often
 export const DIRECTIONS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 
 /** Where each player starts: the corners, then the middle of the edges. */

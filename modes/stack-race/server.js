@@ -4,7 +4,7 @@
 // a lock sends only the piece position and the new score, and clients recompute cleared rows with
 // the shared rules.
 import { defineMode, reject } from '@blockbrawl/mode-sdk/server';
-import { MATCH_MS, ROW_SCORE, W, canFall, canMove, collides, dropY, emptyBoard, fallTicksAt, lock } from './shared.js';
+import { MATCH_MS, ROW_SCORE, W, canFall, canMove, collides, dropY, emptyBoard, fallMsAt, lock } from './shared.js';
 
 function spawn(state, p, ctx) {
   const player = state.players[p];
@@ -17,7 +17,7 @@ function spawn(state, p, ctx) {
     return;
   }
   player.piece = piece;
-  player.fallIn = state.fallTicks;
+  player.fallIn = state.fallMs;
   ctx.emit({ t: 'spawn', p, x: piece.x, w: piece.w });
 }
 
@@ -38,15 +38,30 @@ function checkOver(state, ctx) {
   }
 }
 
+/**
+ * Sleeps until the next piece is due to fall (or the match ends): gravity runs every 200-500 ms, so most 50 ms slots
+ * have nothing to do. fallIn counts from the last tick (state.tickAt), whatever call this is.
+ */
+function rest(state, ctx) {
+  if (state.over) return ctx.sleep();
+  let next = MATCH_MS;
+  for (const player of state.players) {
+    if (!player.out && player.piece) next = Math.min(next, state.tickAt + player.fallIn);
+  }
+  ctx.sleepUntil(next);
+}
+
 export default defineMode({
   setup(ctx) {
     const state = {
       order: ctx.players.map((p) => p.id),
-      fallTicks: fallTicksAt(0),
+      fallMs: fallMsAt(0),
+      tickAt: 0,
       players: ctx.players.map(() => ({ board: emptyBoard(), piece: null, fallIn: 0, score: 0, out: false })),
       over: false,
     };
     for (let p = 0; p < state.players.length; p++) spawn(state, p, ctx);
+    rest(state, ctx);
     return state;
   },
 
@@ -67,22 +82,26 @@ export default defineMode({
     } else {
       throw reject('unknown_action');
     }
+    rest(state, ctx);
   },
 
   onTick(state, dtMs, ctx) {
-    if (state.over) return;
+    state.tickAt = ctx.timeMs;
+    if (state.over) return rest(state, ctx);
 
-    const fallTicks = fallTicksAt(ctx.timeMs);
-    if (fallTicks !== state.fallTicks) {
-      state.fallTicks = fallTicks;
-      ctx.emit({ t: 'speed', n: fallTicks });
+    const fallMs = fallMsAt(ctx.timeMs);
+    if (fallMs !== state.fallMs) {
+      state.fallMs = fallMs;
+      ctx.emit({ t: 'speed', n: fallMs });
     }
 
     for (let p = 0; p < state.players.length; p++) {
       const player = state.players[p];
       if (player.out || !player.piece) continue;
-      if (--player.fallIn > 0) continue;
-      player.fallIn = state.fallTicks;
+      // Gravity in time, not ticks: a late tick or a sleep (larger dtMs) still moves a piece at most one row.
+      player.fallIn -= dtMs;
+      if (player.fallIn > 0) continue;
+      player.fallIn = state.fallMs;
       if (canFall(player.board, player.piece)) {
         player.piece.y++;
         ctx.emit({ t: 'fall', p });
@@ -91,17 +110,18 @@ export default defineMode({
       }
     }
     checkOver(state, ctx);
+    rest(state, ctx);
   },
 
   onPlayerStatus(state, playerId, status, ctx) {
-    if (status !== 'forfeited' || state.over) return;
-    const p = state.order.indexOf(playerId);
-    const player = state.players[p];
-    if (!player || player.out) return;
-    player.out = true;
-    player.piece = null;
-    ctx.emit({ t: 'out', p });
-    checkOver(state, ctx);
+    const player = state.players[state.order.indexOf(playerId)];
+    if (status === 'forfeited' && !state.over && player && !player.out) {
+      player.out = true;
+      player.piece = null;
+      ctx.emit({ t: 'out', p: state.order.indexOf(playerId) });
+      checkOver(state, ctx);
+    }
+    rest(state, ctx);
   },
 
   sync(state) {
@@ -109,7 +129,7 @@ export default defineMode({
       {
         t: 'state',
         order: state.order,
-        speed: state.fallTicks,
+        speed: state.fallMs,
         endsAt: MATCH_MS,
         over: state.over,
         players: state.players.map((player) => ({

@@ -11,6 +11,7 @@ export const FORBIDDEN = [
   [/\b(Worker|SharedWorker|ServiceWorker)\b/, 'workers'],
   [/\b(ArrayBuffer|SharedArrayBuffer|Uint8Array|Int32Array|Float32Array|Float64Array|DataView)\b/, 'typed arrays (removed in the server runtime)'],
   [/\bMath\.random\b/, 'Math.random (use ctx.rng so replays match)'],
+  [/\b(WeakRef|FinalizationRegistry)\b/, 'WeakRef or FinalizationRegistry (garbage collection timing is not deterministic; removed in the server runtime)'],
 ];
 
 function sourceFiles(dir) {

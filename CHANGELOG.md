@@ -25,6 +25,54 @@ re-approved with the new kit. Every entry below says whether build output change
 
 **Work units.** `bench` numbers are part of the contract too: an entry says when they change.
 
+## 0.8.0
+
+The unified runner: one clock for every mode, woken on demand, cheaper calls, merged batches and per-player costs.
+
+- **Prelude wire format v3** (`runtime/prelude.js`, `devkit/wire.js`). Calls take plain arguments
+  (`tick(t)`, `action(playerIndex, actionText, t)`, `status(playerIndex, status, t)`, `sync(playerIndex)`) and
+  return length-framed records instead of JSON. A call that does nothing returns the empty string. The prelude
+  captures the built-ins it uses before a mode runs, so a mode that replaces `JSON` or array methods can no longer
+  forge what the host reads, and it parses the action text itself (invalid JSON is rejected as `invalid_action`), so
+  a client cannot splice anything into the call. The server (BlockBrawl) reads the same format.
+- `WeakRef` and `FinalizationRegistry` are removed in the runtime and refused by the source policy: they expose
+  garbage collection timing.
+- `bench` reports `perPlayer`: units, batches and bytes per player-second; the baseline includes them.
+- The output hash now skips calls that return nothing, on both hosts.
+- **One clock for every mode; `tickRate` is gone.** Every match runs on a 50 ms grid (`devkit/clock.js`, the
+  server's `MatchClock`). A mode with `onTick` is ticked on every slot while it is awake, and `dtMs` is the time
+  since its previous `onTick`. `mode.json` no longer has `tickRate` (the key now fails `check`), and
+  `maxTickRate` left `runtime/limits.json`.
+- **`ctx.sleepUntil(t)` and `ctx.sleep()`**: skip ticks until match time `t`, or until the next action or status
+  change. An action or status change wakes the mode unless that call sleeps again; a rejected action changes
+  nothing. The prelude reports the wake time in a new `W` record and keeps it in the exported state. A sleeping
+  mode costs the server nothing: duel-lite is now ticked about once per turn instead of twice a second.
+- A late tick runs once on the latest slot (at most four slots late; the rest is dropped). Actions keep their exact
+  time between ticks, and a tick that is due runs first, in `dev` as on the server (`MatchHost.advanceTo`).
+  `MatchHost.tick(atTimeMs)` replays a tick at its recorded slot; journal tick entries no longer carry `dtMs`.
+- The examples and templates move by time, not by counting ticks: duel-lite and bloom-blocks sleep until their turn
+  deadlines, stack-race and trail-clash keep gravity and movement in milliseconds (`speed` steps now carry
+  milliseconds) and sleep until the next fall or move (2 and 7 calls a second instead of 20), and the realtime
+  template sleeps while nobody moves. tile-frenzy stays awake: something changes on every slot.
+- The fuzz loop advances 100 ms per iteration, slot by slot, with actions between slots. `bench` measures per second
+  of match time rather than per second of ticks.
+
+- **The outbox** (`devkit/outbox.js`, the server's `MatchOutbox`). Each player's steps wait and are sent merged, one
+  batch per player per flush, numbered when sent: the actor's acknowledgement goes out at once (after that player's
+  pending steps), a rejection, sync, result or abort flushes what it concerns first, and the rest goes out at the
+  end of the next tick, or at once when no tick is due within the next slot. Merged batches stay within the batch
+  limit. tile-frenzy at 8 players: 19 batches per player-second instead of 27. On the server, each flush is one
+  stream message, and players with the same steps share one entry in it.
+- The batch limit is now on a call's steps for one player (16 KB minus 128 bytes for the envelope), on both hosts.
+- Recordings are format 2 and carry `expect.wireHash`: what every player was sent, in order, which the server's
+  parity tests compare. `test` checks that it survives sandbox restarts too.
+
+This is not backward compatible and was not meant to be: SDK `0.1` has not shipped to creators yet, so it changes in
+place.
+
+Build output: the bundler and the `sdk/` runtime files are unchanged, but every example's source changed, so their
+hashes changed. Work units: changed for every mode; the bench baseline and the parity recordings were regenerated.
+
 ## 0.7.0
 
 Submitting modes to the game: the mode registry.

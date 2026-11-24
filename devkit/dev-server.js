@@ -32,6 +32,7 @@ export async function startDevServer({ modeName, port = 5173, playerCount, seed 
   let host;
   let startedAt = 0;
   let ticker = null;
+  let running = false;
   let matchNumber = 0;
 
   // Per-player connection and simulated network conditions.
@@ -73,6 +74,8 @@ export async function startDevServer({ modeName, port = 5173, playerCount, seed 
     }
     flushLogs();
     if (host.ended) stopTicker();
+    // Any call can change when the mode wants its next tick (ctx.sleepUntil, or an action waking it).
+    else armTicker();
   }
 
   function flushLogs() {
@@ -82,17 +85,34 @@ export async function startDevServer({ modeName, port = 5173, playerCount, seed 
     }
   }
 
+  // Host match time: milliseconds since the match clock was anchored, as on the server.
+  const hostNow = () => Date.now() - startedAt;
+
   function stopTicker() {
-    if (ticker) clearInterval(ticker);
+    if (ticker) clearTimeout(ticker);
     ticker = null;
+    running = false;
+  }
+
+  // One timer on the 50 ms grid (devkit/clock.js), re-armed for the next due tick, as the server's match grain does.
+  function armTicker() {
+    if (ticker) clearTimeout(ticker);
+    ticker = null;
+    if (!running || host.ended) return;
+    const delay = host.msToNextTick(hostNow());
+    if (delay !== Infinity) ticker = setTimeout(onTicker, delay);
+  }
+
+  function onTicker() {
+    ticker = null;
+    guard(() => { startedAt += host.advanceTo(hostNow()); });
   }
 
   function startTicker() {
-    if (ticker || host.ended) return;
+    if (running || host.ended) return;
     startedAt = Date.now() - host.timeMs;
-    if (manifest.tickRate <= 0) return;
-    const dtMs = Math.round(1000 / manifest.tickRate); // whole milliseconds, as the server sends
-    ticker = setInterval(() => guard(() => host.tick(dtMs)), dtMs);
+    running = true;
+    armTicker();
   }
 
   async function newMatch(newSeed) {
@@ -225,7 +245,11 @@ export async function startDevServer({ modeName, port = 5173, playerCount, seed 
       if (!conn || !message) return json(400, { error: 'bad request' });
       const handle = () => guard(() => {
         if (message.kind === 'sync') host.sync(playerId);
-        else if (message.kind === 'action') host.action(playerId, message.actionId, message.action, Date.now() - startedAt);
+        else if (message.kind === 'action') {
+          // A tick that is due runs first; the action keeps its exact time.
+          if (running) startedAt += host.advanceTo(hostNow());
+          host.action(playerId, message.actionId, message.action, running ? hostNow() : host.timeMs);
+        }
       });
       if (conn.latencyMs > 0) setTimeout(handle, conn.latencyMs);
       else handle();

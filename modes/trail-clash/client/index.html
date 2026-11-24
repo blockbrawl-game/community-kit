@@ -178,7 +178,7 @@ function frame(now) {
   g.drawImage(layer, 0, 0);
 
   // Heads: interpolated toward the next cell so motion looks smooth between 6-10 moves a second.
-  const moveMs = s.moveTicks * 50;
+  const moveMs = s.moveMs;
   const t = Math.min(1, (now - model.fx.lastMoveAt) / moveMs);
   s.players.forEach((pl, p) => {
     if (!pl.alive) return;

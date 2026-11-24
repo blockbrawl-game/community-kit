@@ -5,7 +5,7 @@ shared total, and whoever brings it to 21 wins.
 
 | File | What it is |
 |---|---|
-| `mode.json` | Name, version, player counts, tick rate and the store listing |
+| `mode.json` | Name, version, player counts and the store listing |
 | `server.js` | The rules: the only authority, runs on the server |
 | `shared.js` | Rules the server and the client both use |
 | `client/model.js` | The client's picture of the match, built from steps |

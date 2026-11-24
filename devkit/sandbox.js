@@ -4,10 +4,11 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { communityRoot, limits as defaultLimits } from './build.js';
 import { counterName, instrument } from './work.js';
+import { decodeFrames, legacyStepsJsonLength } from './wire.js';
 
 const preludeSource = readFileSync(path.join(communityRoot, 'runtime', 'prelude.js'), 'utf8');
 const preludeScript = new vm.Script(preludeSource, { filename: 'prelude.js' });
-const callScript = new vm.Script('__bb[__bbFn](__bbArg)', { filename: 'host-call.js' });
+const callScript = new vm.Script('__bb[__bbFn](__bbA, __bbB, __bbC)', { filename: 'host-call.js' });
 
 /** The mode threw something other than a rejection, or broke a limit. The match cannot continue. */
 export class ModeError extends Error {
@@ -28,8 +29,10 @@ export class Sandbox {
     this.maxCallMs = options.maxCallMs ?? defaultLimits.maxCallMs;
     this.callTimes = [];
     this.logs = [];
-    /** With countWork: one { fn, units } per call, in order. */
+    /** With countWork: one { fn, units, bytes } per call, in order. */
     this.work = [];
+    /** The players' ids in setup order (MatchHost sets it): private steps name a player by index. */
+    this.playerIds = [];
     this.workUnits = 0;
     // An empty context: JavaScript built-ins only. No require, process, timers or network.
     this.context = vm.createContext({}, { codeGeneration: { strings: false, wasm: false } });
@@ -53,10 +56,15 @@ export class Sandbox {
     }
   }
 
-  /** Calls one prelude entry point. Returns the parsed output and the raw JSON (used for hashing). */
-  call(fn, input) {
+  /**
+   * Calls one prelude entry point with up to three plain arguments. Returns the decoded output (devkit/wire.js,
+   * steps carrying their JSON text and a player index) and the raw string (used for hashing).
+   */
+  call(fn, args = []) {
     this.context.__bbFn = fn;
-    this.context.__bbArg = input === undefined ? undefined : JSON.stringify(input);
+    this.context.__bbA = args[0];
+    this.context.__bbB = args[1];
+    this.context.__bbC = args[2];
     const started = performance.now();
     const unitsBefore = this.workUnits;
     let raw;
@@ -69,29 +77,68 @@ export class Sandbox {
       throw new ModeError(`${fn}() crashed the sandbox: ${error.message}`, { stack: error.stack });
     }
     this.callTimes.push(performance.now() - started);
-    const out = JSON.parse(raw);
+    if (typeof raw !== 'string') throw new ModeError(`${fn}() returned no result.`);
+    let out;
+    try {
+      out = decodeFrames(raw);
+    } catch (error) {
+      throw new ModeError(`${fn}() returned malformed output: ${error.message}`);
+    }
     // The data a mode is answerable for: the steps it emits and the actions its clients send. The fixed
-    // wrapping around them (player ids, clock, envelope) is the platform's and the same for every mode.
-    const bytes = (input?.action === undefined ? 0 : JSON.stringify(input.action).length)
-      + (Array.isArray(out.steps) ? JSON.stringify(out.steps).length : 0);
+    // wrapping around them (player ids, clock, envelope) is the platform's and the same for every mode. Measured
+    // as it always was (devkit/wire.js), so the wire format does not change a mode's bench numbers.
+    const actionText = fn === 'action' ? args[1] : undefined;
+    // (A rejection used to carry an empty step list, "[]": 2 bytes.)
+    const stepBytes = out.error !== null ? 0 : out.rejected !== null ? 2 : legacyStepsJsonLength(out.steps, this.playerIds);
+    const bytes = (typeof actionText === 'string' ? actionText.length : 0) + stepBytes;
     this.work.push({ fn, units: this.workUnits - unitsBefore, bytes });
-    if (out.logs) this.logs.push(...out.logs);
-    if (out.ok === false) {
-      throw new ModeError(`${fn}() threw: ${out.error}`, { stack: out.stack });
+    if (out.logs.length > 0) this.logs.push(...out.logs);
+    if (out.error !== null) {
+      throw new ModeError(`${fn}() threw: ${out.error}`, { stack: out.stack ?? undefined });
     }
     return { out, raw };
   }
 
-  exportState() {
-    this.context.__bbFn = 'exportState';
-    this.context.__bbArg = undefined;
-    return callScript.runInContext(this.context, { timeout: this.maxCallMs });
+  /** The prelude's sync: JSON `{ ok, steps }`, or a failure frame. */
+  sync(playerIndex) {
+    const started = performance.now();
+    const unitsBefore = this.workUnits;
+    const { raw } = this.#plain('sync', [playerIndex]);
+    this.callTimes.push(performance.now() - started);
+    if (!raw.startsWith('{')) {
+      const out = decodeFrames(raw);
+      throw new ModeError(`sync() threw: ${out.error}`, { stack: out.stack ?? undefined });
+    }
+    const { steps } = JSON.parse(raw);
+    // Counted like every other call: a join or reconnect costs the server this much.
+    this.work.push({ fn: 'sync', units: this.workUnits - unitsBefore, bytes: JSON.stringify(steps).length });
+    return steps;
   }
 
+  #plain(fn, args) {
+    this.context.__bbFn = fn;
+    this.context.__bbA = args[0];
+    this.context.__bbB = args[1];
+    this.context.__bbC = args[2];
+    try {
+      return { raw: callScript.runInContext(this.context, { timeout: this.maxCallMs }) };
+    } catch (error) {
+      if (error.code === 'ERR_SCRIPT_EXECUTION_TIMEOUT') {
+        throw new ModeError(`${fn}() exceeded the ${this.maxCallMs} ms time limit.`, { limit: 'maxCallMs' });
+      }
+      throw new ModeError(`${fn}() crashed the sandbox: ${error.message}`, { stack: error.stack });
+    }
+  }
+
+  exportState() {
+    return this.#plain('exportState', []).raw;
+  }
+
+  /** Returns the restored wake time (devkit/wire.js). */
   importState(snapshotJson) {
-    this.context.__bbFn = 'importState';
-    this.context.__bbArg = snapshotJson;
-    const out = JSON.parse(callScript.runInContext(this.context, { timeout: this.maxCallMs }));
-    if (out.ok === false) throw new ModeError(`importState failed: ${out.error}`);
+    const { raw } = this.#plain('importState', [snapshotJson]);
+    const out = decodeFrames(raw);
+    if (out.error !== null || out.wake === null) throw new ModeError(`importState failed: ${out.error}`);
+    return out.wake;
   }
 }

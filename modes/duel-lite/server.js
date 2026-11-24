@@ -3,6 +3,9 @@
 // Players are referred to by their index in `state.order` inside steps, which is shorter on the
 // wire than a player id. Hands are private: the pieces go only to their owner, everyone else sees
 // a count. `sync` rebuilds the same picture from nothing.
+//
+// Nothing moves on its own except the turn clock, so the mode sleeps until the deadline after every call
+// (`rest`): it is ticked about once per turn instead of 20 times a second.
 import { defineMode, reject } from '@blockbrawl/mode-sdk/server';
 import { HAND_SIZE, MAX_ROUNDS, PIECE_IDS, TURN_MS, canPlace, emptyBoard, hasAnyPlacement, place } from './shared.js';
 
@@ -46,6 +49,12 @@ function endMatch(state, ctx) {
   ctx.emit({ t: 'over' });
 }
 
+/** No tick before the turn deadline; none at all once the match is over. */
+function rest(state, ctx) {
+  if (state.over) ctx.sleep();
+  else ctx.sleepUntil(state.deadline);
+}
+
 export default defineMode({
   setup(ctx) {
     const order = ctx.players.map((p) => p.id);
@@ -64,6 +73,7 @@ export default defineMode({
       state.hands[id] = dealHand(ctx);
       state.scores[id] = 0;
     }
+    rest(state, ctx);
     return state;
   },
 
@@ -90,20 +100,26 @@ export default defineMode({
     }
 
     advanceTurn(state, ctx);
+    rest(state, ctx);
   },
 
+  // Woken at the turn deadline: the player on turn ran out of time.
   onTick(state, dtMs, ctx) {
-    if (state.over || ctx.timeMs < state.deadline) return;
-    ctx.emit({ t: 'timeout', p: state.turn });
-    advanceTurn(state, ctx);
+    if (!state.over && ctx.timeMs >= state.deadline) {
+      ctx.emit({ t: 'timeout', p: state.turn });
+      advanceTurn(state, ctx);
+    }
+    rest(state, ctx);
   },
 
   onPlayerStatus(state, playerId, status, ctx) {
-    if (status !== 'forfeited' || state.over || state.forfeited[playerId]) return;
-    state.forfeited[playerId] = true;
-    ctx.emit({ t: 'forfeit', p: state.order.indexOf(playerId) });
-    if (activeCount(state) <= 1) endMatch(state, ctx);
-    else if (state.order[state.turn] === playerId) advanceTurn(state, ctx);
+    if (status === 'forfeited' && !state.over && !state.forfeited[playerId]) {
+      state.forfeited[playerId] = true;
+      ctx.emit({ t: 'forfeit', p: state.order.indexOf(playerId) });
+      if (activeCount(state) <= 1) endMatch(state, ctx);
+      else if (state.order[state.turn] === playerId) advanceTurn(state, ctx);
+    }
+    rest(state, ctx);
   },
 
   sync(state, playerId) {

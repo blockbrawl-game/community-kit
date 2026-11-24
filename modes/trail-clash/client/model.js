@@ -6,7 +6,7 @@
 import { WALL, advance, shrink } from '../shared.js';
 
 export function createModel() {
-  const auth = { me: -1, order: [], grid: [], players: [], moves: 0, ring: -1, moveTicks: 3, endsAt: 0, over: false, queued: [] };
+  const auth = { me: -1, order: [], grid: [], players: [], moves: 0, ring: -1, moveMs: 150, endsAt: 0, over: false, queued: [] };
   const fx = { lastMoveAt: 0, crashes: [], crashCount: 0, shrinkAt: 0 };
   let you = null;
   let pending = [];
@@ -28,7 +28,7 @@ export function createModel() {
         auth.players = step.players.map((pl) => ({ ...pl }));
         auth.moves = step.moves;
         auth.ring = step.ring;
-        auth.moveTicks = step.moveTicks;
+        auth.moveMs = step.moveMs;
         auth.endsAt = step.endsAt;
         auth.over = step.over;
         auth.queued = step.queues.map((q) => q.slice());
@@ -48,7 +48,7 @@ export function createModel() {
         fx.shrinkAt = now();
         break;
       case 'speed':
-        auth.moveTicks = step.n;
+        auth.moveMs = step.n;
         break;
       case 'die':
         auth.players[step.p].alive = false;

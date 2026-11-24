@@ -12,6 +12,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { bundleClient, bundleServer, limits, loadMode } from './build.js';
 import { MatchHost, devPlayers } from './match.js';
+import { SLOT_MS } from './clock.js';
 
 const MAX_ITERATIONS = 4000;
 const GARBAGE = [null, 42, 'x', [], {}, { t: 'nope' }, { t: 'place' }, { t: 'move', dx: 99 }, { t: 'place', i: -1, x: 1e9, y: 'a' }, { t: 'x'.repeat(8000) }];
@@ -83,6 +84,8 @@ export function fuzzRun({ mode, bundle, createModel, nextAction, seed, playerCou
   });
 
   function checkSync(playerId, when) {
+    // The live client must have everything the state has: send what waits in the outbox first.
+    host.flush();
     const fresh = createModel();
     const message = host.buildSync(playerId);
     fresh.applySync(message.steps, message.info);
@@ -103,11 +106,13 @@ export function fuzzRun({ mode, bundle, createModel, nextAction, seed, playerCou
     return JSON.stringify([snapshot.state, snapshot.rng]);
   }
 
+  let actAt = 0;
   function act(playerId, action, isGarbage) {
     const client = clients.get(playerId);
     const actionId = `f${counts.actions++}`;
     const before = stateAndRng();
-    host.action(playerId, actionId, action, host.timeMs);
+    host.advanceTo(actAt);
+    host.action(playerId, actionId, action, actAt);
     if (isGarbage) counts.garbage++;
     if (client.rejected.has(actionId)) {
       counts.rejected++;
@@ -125,14 +130,14 @@ export function fuzzRun({ mode, bundle, createModel, nextAction, seed, playerCou
     client.synced = true;
   }
 
-  // Whole milliseconds, as on the server (JsGameLogic rounds the measured tick delta): at 30 ticks a second a
-  // fractional 33.33 would make dev kit runs impossible to replay on the server.
-  const dtMs = manifest.tickRate > 0 ? Math.round(1000 / manifest.tickRate) : 100;
+  // One iteration is 100 ms of match time: two slots of the server's 50 ms grid (devkit/clock.js), each ticked if the
+  // mode is awake then, and the iteration's actions at one time between slots, as players' actions arrive.
+  let hostMs = 0;
   let forfeitUsed = false;
   let iterations = 0;
   for (; iterations < MAX_ITERATIONS && !host.ended; iterations++) {
-    if (manifest.tickRate > 0) host.tick(dtMs);
-    else host.timeMs += dtMs;
+    for (let slot = 0; slot < 2; slot++) host.advanceTo(hostMs += SLOT_MS);
+    actAt = hostMs + Math.floor(rng.next() * SLOT_MS);
 
     for (const player of rng.shuffle([...players])) {
       if (host.ended) break;
@@ -175,10 +180,10 @@ function replay({ mode, bundle, players, seed, inputs, hydrateEvery }) {
   inputs.forEach((input, index) => {
     if (hydrateEvery && index > 0 && index % hydrateEvery === 0) host.hydrate();
     if (input.op === 'action') host.action(input.playerId, input.actionId, input.action, input.timeMs);
-    else if (input.op === 'tick') host.tick(input.dtMs);
+    else if (input.op === 'tick') host.tick(input.timeMs);
     else if (input.op === 'status') host.setStatus(input.playerId, input.status);
   });
-  return { outputHash: host.outputHash, stateHash: host.stateHash() };
+  return { outputHash: host.outputHash, stateHash: host.stateHash(), wireHash: host.wireHash };
 }
 
 function percentile(sorted, p) {
@@ -271,7 +276,8 @@ async function runChecks({ modeName, runs = 20, seed = 1, recordFile }, report) 
         const again = replay(args);
         if (again.outputHash !== run.outputHash || again.stateHash !== run.stateHash) deterministic = false;
         const moved = replay({ ...args, hydrateEvery: 37 });
-        if (moved.outputHash !== run.outputHash || moved.stateHash !== run.stateHash) hydrates = false;
+        // What players receive must not depend on the sandbox being restarted either.
+        if (moved.outputHash !== run.outputHash || moved.stateHash !== run.stateHash || moved.wireHash !== again.wireHash) hydrates = false;
       } catch (error) {
         hydrates = false;
         console.log(`      replay threw: ${error.message}`);
@@ -304,17 +310,19 @@ async function runChecks({ modeName, runs = 20, seed = 1, recordFile }, report) 
 
     if (recordFile && completed.length > 0 && failures.length === 0) {
       const first = completed[0];
+      // The wire hash comes from a replay: the live run above also flushed the outbox for its sync checks.
+      const { wireHash } = replay({ mode, bundle, players: first.players, seed: first.seed, inputs: first.inputs });
       const file = path.resolve(recordFile);
       await mkdir(path.dirname(file), { recursive: true });
       await writeFile(file, JSON.stringify({
-        format: 1,
+        format: 2,
         modeId: manifest.id,
         version: manifest.version,
         seed: first.seed,
         players: first.players,
         limits: { maxStepsPerCall: limits.maxStepsPerCall },
         inputs: first.inputs,
-        expect: { outputHash: first.outputHash, stateHash: first.stateHash },
+        expect: { outputHash: first.outputHash, stateHash: first.stateHash, wireHash },
       }));
       console.log(`\n  Recorded seed ${first.seed} (${first.inputs.length} inputs) to ${file}`);
     }

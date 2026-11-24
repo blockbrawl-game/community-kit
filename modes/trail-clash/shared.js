@@ -6,8 +6,8 @@ export const WALL = -1;
 export const MATCH_MS = 90000;
 export const SHRINK_AT_MS = 45000;
 export const SHRINK_EVERY_MS = 2000;
-export const START_MOVE_TICKS = 3; // ticks per cell at the start (20 ticks a second)
-export const MIN_MOVE_TICKS = 2;
+export const START_MOVE_MS = 150; // time per cell at the start
+export const MIN_MOVE_MS = 100;
 export const SPEED_UP_AT_MS = 25000;
 
 export const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]]; // up, right, down, left
@@ -30,8 +30,8 @@ export function startGrid(players) {
   return grid;
 }
 
-export function moveTicksAt(timeMs) {
-  return timeMs >= SPEED_UP_AT_MS ? MIN_MOVE_TICKS : START_MOVE_TICKS;
+export function moveMsAt(timeMs) {
+  return timeMs >= SPEED_UP_AT_MS ? MIN_MOVE_MS : START_MOVE_MS;
 }
 
 /** A turn is allowed unless it keeps the same heading or reverses into the trail. */

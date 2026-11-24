@@ -14,7 +14,7 @@ Plant shapes on a 9 x 9 garden; full rows and columns burst into bloom. Alone, o
 | | |
 |---|---|
 | Players | 1-2 |
-| Tick rate | 2 (turn timer) |
+| Ticks | asleep until the duel's turn deadline; never in a solo garden |
 
 ```bash
 npx brawl-modes dev bloom-blocks

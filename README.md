@@ -20,7 +20,7 @@ Requires Node 20 or newer. In an empty folder:
 ```bash
 npm init -y
 npm pkg set type=module
-npm install --save-exact https://github.com/blockbrawl-game/community-kit/releases/download/v0.7.0/blockbrawl-game-community-kit-0.7.0.tgz
+npm install --save-exact https://github.com/blockbrawl-game/community-kit/releases/download/v0.8.0/blockbrawl-game-community-kit-0.8.0.tgz
 npx brawl-modes new my-mode --template turn
 npx brawl-modes check my-mode
 npx brawl-modes dev my-mode
@@ -49,7 +49,7 @@ Every command takes `--json` for one machine-readable result object on stdout. A
 Every release is a git tag (`vX.Y.Z`) with a GitHub release that has the packed kit attached. There is no npm
 registry package and no token is needed. npm pins the release file's integrity hash in your lockfile, and it needs
 neither git nor an SSH key, so it also works in container builds. (`npm install
-github:blockbrawl-game/community-kit#v0.7.0` works too, but records a `git+ssh` URL that needs git and GitHub SSH
+github:blockbrawl-game/community-kit#v0.8.0` works too, but records a `git+ssh` URL that needs git and GitHub SSH
 access on every machine that runs `npm ci`.) What changed in each release: [CHANGELOG.md](CHANGELOG.md).
 
 ### Working in this repository
@@ -73,8 +73,8 @@ node devkit/cli.js dev duel-lite  # npx brawl-modes ... is node devkit/cli.js ..
 | `modes/duel-lite/` | Turn-based reference mode: steps, private hands, sync |
 | `modes/stack-race/` | Real-time reference mode: ticking and client prediction |
 | `modes/tap-rush/` | Offline reference mode: no server, the whole game is the client |
-| `modes/tile-frenzy/` | Showcase, load test: 1-8 players at 30 ticks a second grabbing tiles on a shared board |
-| `modes/trail-clash/` | Showcase, real time: 1-4 light trails at 20 ticks a second, queued turns, a shrinking arena |
+| `modes/tile-frenzy/` | Showcase, load test: 1-8 players grabbing tiles on a shared board, ticked every 50 ms |
+| `modes/trail-clash/` | Showcase, real time: 1-4 light trails moving in time, queued turns, a shrinking arena |
 | `modes/bloom-blocks/` | Showcase, visuals: turn-based placement puzzle for 1-2 players with drag and drop and particle effects |
 | `scripts/check-modes.mjs` | The CI gate: `check` on every mode, and bench numbers equal to `scripts/bench-baseline.json` |
 | `docs/` | Guides |
@@ -83,7 +83,7 @@ node devkit/cli.js dev duel-lite  # npx brawl-modes ... is node devkit/cli.js ..
 
 ```
 modes/<mode-id>/
-  mode.json          id, version, player counts, tickRate, file names
+  mode.json          id, version, player counts, file names
   server.js          export default defineMode({ ... })
   shared.js          optional rules used by both halves
   client/index.html  the client page

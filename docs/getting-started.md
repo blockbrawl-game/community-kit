@@ -10,7 +10,7 @@ mkdir my-modes
 cd my-modes
 npm init -y
 npm pkg set type=module
-npm install --save-exact https://github.com/blockbrawl-game/community-kit/releases/download/v0.7.0/blockbrawl-game-community-kit-0.7.0.tgz
+npm install --save-exact https://github.com/blockbrawl-game/community-kit/releases/download/v0.8.0/blockbrawl-game-community-kit-0.8.0.tgz
 ```
 
 The kit is a GitHub release file, not an npm registry package: no account or token is needed, and npm pins its
@@ -84,7 +84,7 @@ The kit's example modes are working, reviewed code. Each has a README saying wha
 |---|---|
 | `duel-lite` | The smallest turn-based mode: hidden hands, validation, sync |
 | `stack-race` | Ticking and client prediction |
-| `tile-frenzy` | 8 players at 30 ticks a second, contested actions |
+| `tile-frenzy` | 8 players, ticked on every 50 ms slot, contested actions |
 | `trail-clash` | Queued input, prediction and interpolation |
 | `bloom-blocks` | A rich client: drag and drop, particles, animation |
 | `tap-rush` | An offline mode |

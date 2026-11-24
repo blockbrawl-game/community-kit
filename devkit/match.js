@@ -11,6 +11,8 @@
 import { createHash } from 'node:crypto';
 import { Sandbox, ModeError } from './sandbox.js';
 import { limits as defaultLimits } from './build.js';
+import { due, nextTickMs } from './clock.js';
+import { ENVELOPE_ALLOWANCE, Outbox, shouldWait } from './outbox.js';
 
 export class MatchHost {
   /**
@@ -32,16 +34,47 @@ export class MatchHost {
     this.limits = { ...defaultLimits, ...limits };
 
     this.countWork = countWork === true;
-    this.sandbox = new Sandbox(bundle, { maxCallMs: this.limits.maxCallMs, countWork: this.countWork });
+    this.sandbox = this.#newSandbox();
     this.timeMs = 0;
+    // When the mode wants its next tick (devkit/clock.js): 0 for the next slot, a match time, or -1 (ASLEEP).
+    this.wake = 0;
     this.seq = new Map(players.map((p) => [p.id, 0]));
     this.result = null;
     this.aborted = null;
 
-    // Everything needed to replay this match, and a running hash of everything the mode produced.
+    // Everything needed to replay this match, a running hash of everything the mode produced, and one of what each
+    // player was sent (the wire hash: it covers the outbox's merging and numbering too).
     this.inputs = [];
     this.outputHash = createHash('sha256').update('blockbrawl-mode-v1').digest('hex');
+    this.wire = players.map(() => createHash('sha256').update('blockbrawl-wire-v1').digest('hex'));
     this.stats = { maxStateBytes: 0, maxBatchBytes: 0, bytesSent: 0, batches: 0 };
+    this.outbox = new Outbox(players.length, this.limits.maxBatchBytes, (p) => this.#nextSeq(p), (p, message) => this.#send(this.players[p].id, message));
+  }
+
+  /** The hash of what every player was sent, in order (syncs left out: they depend on when someone asks). */
+  get wireHash() {
+    return createHash('sha256').update(this.wire.join(',')).digest('hex');
+  }
+
+  #nextSeq(p) {
+    const id = this.players[p].id;
+    const seq = this.seq.get(id) + 1;
+    this.seq.set(id, seq);
+    return seq;
+  }
+
+  /** Sends everything pending in the outbox now (the server does at the end of a tick, or when it goes away). */
+  flush() {
+    this.outbox.flush();
+  }
+
+  /**
+   * The end of a call's turn, as in the server's grain: a tick sends everything; any other call sends what is
+   * pending unless a tick is due within the next slot (devkit/outbox.js).
+   */
+  #endTurn(isTick) {
+    const next = this.ended ? null : nextTickMs(this.timeMs, this.wake);
+    if (isTick || !shouldWait(this.timeMs, next)) this.outbox.flush();
   }
 
   get ended() {
@@ -49,55 +82,101 @@ export class MatchHost {
   }
 
   start() {
-    this.#run('setup', { players: this.players, seed: this.seed, limits: { maxStepsPerCall: this.limits.maxStepsPerCall } }, {});
+    const input = JSON.stringify({ players: this.players, seed: this.seed, limits: { maxStepsPerCall: this.limits.maxStepsPerCall } });
+    this.#run('setup', [input], {});
+    // Players start from a sync, which already has setup's opening steps, as on the server.
+    this.outbox.discard();
   }
 
-  /** @param {number} [atTimeMs] match clock for tickless modes; ignored if earlier than the current clock */
+  #newSandbox() {
+    const sandbox = new Sandbox(this.bundle, { maxCallMs: this.limits.maxCallMs, countWork: this.countWork });
+    sandbox.playerIds = this.players.map((p) => p.id);
+    return sandbox;
+  }
+
+  #indexOf(playerId) {
+    return this.players.findIndex((p) => p.id === playerId);
+  }
+
+  /** @param {number} [atTimeMs] host match time of the action; ignored if earlier than the current clock */
   action(playerId, actionId, action, atTimeMs) {
     if (this.ended) return;
     if (!this.seq.has(playerId)) return;
     if (typeof atTimeMs === 'number' && atTimeMs > this.timeMs) this.timeMs = atTimeMs;
 
     if (JSON.stringify(action ?? null).length > this.limits.maxActionBytes) {
-      this.#send(playerId, { kind: 'rejected', actionId, reason: 'action_too_large' });
+      this.outbox.message(this.#indexOf(playerId), { kind: 'rejected', actionId, reason: 'action_too_large' });
+      this.#endTurn(false);
       return;
     }
     this.inputs.push({ op: 'action', playerId, actionId, action, timeMs: this.timeMs });
-    this.#run('action', { playerId, action, timeMs: this.timeMs }, { actorId: playerId, actionId });
+    const actionText = action === undefined ? undefined : JSON.stringify(action);
+    this.#run('action', [this.#indexOf(playerId), actionText, this.timeMs], { actorId: playerId, actionId });
+    this.#endTurn(false);
   }
 
-  tick(dtMs) {
+  /** Ticks the mode at grid slot atTimeMs. The prelude computes dtMs: the time since the previous onTick. */
+  tick(atTimeMs) {
     if (this.ended) return;
-    this.timeMs += dtMs;
-    this.inputs.push({ op: 'tick', dtMs, timeMs: this.timeMs });
-    this.#run('tick', { dtMs, timeMs: this.timeMs }, {});
+    this.timeMs = Math.max(this.timeMs, atTimeMs);
+    this.inputs.push({ op: 'tick', timeMs: this.timeMs });
+    this.#run('tick', [this.timeMs], {});
+    this.#endTurn(true);
+  }
+
+  /**
+   * Runs the tick that is due at host match time hostMs (devkit/clock.js), as the server's timer does: once, on
+   * the latest slot. Call it before an action at hostMs, so the action never comes before a tick that was due.
+   * Returns the milliseconds of lag beyond the cap that were dropped: the caller's clock should fall behind by
+   * that much, as the server's does.
+   */
+  advanceTo(hostMs) {
+    if (this.ended) return 0;
+    const tick = due(this.timeMs, hostMs, this.wake);
+    if (!tick) return 0;
+    this.tick(tick.atMs);
+    return tick.droppedMs;
+  }
+
+  /** Milliseconds from host match time hostMs until the next tick is due; Infinity while the mode sleeps. */
+  msToNextTick(hostMs) {
+    const next = this.ended ? null : nextTickMs(this.timeMs, this.wake);
+    return next === null ? Infinity : Math.max(0, next - hostMs);
   }
 
   /** @param {'disconnected' | 'reconnected' | 'forfeited'} status */
   setStatus(playerId, status) {
     if (this.ended) return;
     this.inputs.push({ op: 'status', playerId, status, timeMs: this.timeMs });
-    this.#run('status', { playerId, status, timeMs: this.timeMs }, {});
+    this.#run('status', [this.#indexOf(playerId), status, this.timeMs], {});
+    this.#endTurn(false);
   }
 
   /** Builds the full catch-up message for one player without sending it. */
   buildSync(playerId) {
-    const { out } = this.#call('sync', { playerId });
+    let steps;
+    try {
+      steps = this.sandbox.sync(this.#indexOf(playerId));
+    } catch (error) {
+      if (error instanceof ModeError) this.#abort(error.message);
+      throw error;
+    }
     return {
       kind: 'sync',
       seq: this.seq.get(playerId),
       timeMs: this.timeMs,
-      steps: out.steps,
+      steps,
       info: { modeId: this.manifest.id, version: this.manifest.version, you: playerId, players: this.players },
     };
   }
 
-  /** Sends the catch-up message to one player. */
+  /** Sends the catch-up message to one player; it replaces whatever was pending for them. */
   sync(playerId) {
     const message = this.buildSync(playerId);
-    this.#send(playerId, message);
-    if (this.result) this.#send(playerId, { kind: 'result', result: this.result });
-    if (this.aborted) this.#send(playerId, { kind: 'aborted', reason: this.aborted });
+    const p = this.#indexOf(playerId);
+    this.outbox.sync(p, message);
+    if (this.result) this.outbox.message(p, { kind: 'result', result: this.result });
+    if (this.aborted) this.outbox.message(p, { kind: 'aborted', reason: this.aborted });
     return message;
   }
 
@@ -109,60 +188,56 @@ export class MatchHost {
   hydrate() {
     const snapshot = this.sandbox.exportState();
     const previous = this.sandbox;
-    this.sandbox = new Sandbox(this.bundle, { maxCallMs: this.limits.maxCallMs, countWork: this.countWork });
+    this.sandbox = this.#newSandbox();
     this.sandbox.callTimes = previous.callTimes;
     this.sandbox.work = previous.work;
     this.sandbox.logs = previous.logs;
-    this.sandbox.importState(snapshot);
+    this.wake = this.sandbox.importState(snapshot);
   }
 
   stateHash() {
     return createHash('sha256').update(this.exportState()).digest('hex');
   }
 
-  #call(fn, input) {
+  #call(fn, args) {
     try {
-      return this.sandbox.call(fn, input);
+      return this.sandbox.call(fn, args);
     } catch (error) {
       if (error instanceof ModeError) this.#abort(error.message);
       throw error;
     }
   }
 
-  #run(fn, input, { actorId, actionId }) {
-    const { out, raw } = this.#call(fn, input);
-    this.outputHash = createHash('sha256').update(this.outputHash).update(raw).digest('hex');
+  #run(fn, args, { actorId, actionId }) {
+    const { out, raw } = this.#call(fn, args);
+    // An empty output (nothing happened) leaves the hash as it is, on the server as here.
+    if (raw !== '') this.outputHash = createHash('sha256').update(this.outputHash).update(raw).digest('hex');
+    if (out.wake !== null) this.wake = out.wake;
 
-    if (out.rejected) {
-      if (actorId) this.#send(actorId, { kind: 'rejected', actionId, reason: out.rejected });
+    if (out.rejected !== null) {
+      if (actorId) this.outbox.message(this.#indexOf(actorId), { kind: 'rejected', actionId, reason: out.rejected });
       return;
     }
 
-    for (const player of this.players) {
-      const steps = [];
-      for (const entry of out.steps) {
-        if (entry.to === null || entry.to === player.id) steps.push(entry.step);
-      }
-      const isActor = player.id === actorId;
-      if (steps.length === 0 && !isActor) continue;
-
-      const seq = this.seq.get(player.id) + 1;
-      this.seq.set(player.id, seq);
-      const batch = { kind: 'steps', seq, timeMs: this.timeMs, steps };
-      if (isActor && actionId !== undefined) batch.ackActionId = actionId;
-
-      const bytes = JSON.stringify(batch).length;
-      if (bytes > this.limits.maxBatchBytes) {
-        this.#abort(`A step batch of ${bytes} bytes exceeds the ${this.limits.maxBatchBytes} byte limit.`);
+    // Each player's steps from this call go to the outbox, which merges and numbers them (devkit/outbox.js).
+    const perPlayer = this.players.map((player, index) => out.steps.filter((e) => e.to === -1 || e.to === index).map((e) => e.json));
+    for (let index = 0; index < this.players.length; index++) {
+      const jsons = perPlayer[index];
+      // The envelope is the platform's: the limit is on the steps, with room left for it (as on the server).
+      const chars = jsons.length === 0 ? 2 : jsons.reduce((sum, json) => sum + json.length, 0) + jsons.length + 1;
+      if (chars + ENVELOPE_ALLOWANCE > this.limits.maxBatchBytes) {
+        this.#abort(`A step batch of ${chars} bytes exceeds the ${this.limits.maxBatchBytes - ENVELOPE_ALLOWANCE} byte limit for steps.`);
         throw new ModeError(this.aborted, { limit: 'maxBatchBytes' });
       }
-      this.stats.maxBatchBytes = Math.max(this.stats.maxBatchBytes, bytes);
-      this.#send(player.id, batch);
+    }
+    for (let index = 0; index < this.players.length; index++) {
+      const isActor = this.players[index].id === actorId;
+      this.outbox.steps(index, perPlayer[index], this.timeMs, isActor && actionId !== undefined ? actionId : undefined);
     }
 
-    if (out.result) {
-      this.result = out.result;
-      for (const player of this.players) this.#send(player.id, { kind: 'result', result: out.result });
+    if (out.resultJson !== null) {
+      this.result = JSON.parse(out.resultJson);
+      this.outbox.message(-1, { kind: 'result', result: this.result });
     }
   }
 
@@ -180,13 +255,19 @@ export class MatchHost {
   #abort(reason) {
     if (this.aborted) return;
     this.aborted = reason;
-    for (const player of this.players) this.#send(player.id, { kind: 'aborted', reason });
+    this.outbox.message(-1, { kind: 'aborted', reason });
   }
 
   #send(playerId, message) {
+    const text = JSON.stringify(message);
     if (message.kind === 'steps') {
       this.stats.batches++;
-      this.stats.bytesSent += JSON.stringify(message).length;
+      this.stats.bytesSent += text.length;
+      this.stats.maxBatchBytes = Math.max(this.stats.maxBatchBytes, text.length);
+    }
+    if (message.kind !== 'sync') {
+      const p = this.#indexOf(playerId);
+      this.wire[p] = createHash('sha256').update(this.wire[p]).update(text).digest('hex');
     }
     this.onSend(playerId, message);
   }

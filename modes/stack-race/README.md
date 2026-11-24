@@ -4,7 +4,7 @@ Real-time falling bars, one well per player, 1 to 4 players. The reference for t
 
 **What it teaches**
 
-- **The tick drives the world.** `onTick` drops every piece on a timer; actions only move or drop the local piece.
+- **The tick drives the world.** `onTick` drops every piece on a timer measured in `dtMs`; actions only move or drop the local piece.
 - **Client prediction.** `client/model.js` keeps `auth` (what the server confirmed) and `pending` (actions sent but not
   acknowledged yet) and draws `auth` with `pending` replayed on top. An acknowledgement (`ackActionId`) or a rejection
   removes the action from `pending`, and the picture corrects itself. See `docs/prediction.md`.
@@ -14,7 +14,7 @@ Real-time falling bars, one well per player, 1 to 4 players. The reference for t
 | | |
 |---|---|
 | Players | 1-4 |
-| Tick rate | 10 |
+| Ticks | asleep until the next piece falls (every 500 ms, speeding up to 200 ms) |
 
 ```bash
 npx brawl-modes dev stack-race --players 2

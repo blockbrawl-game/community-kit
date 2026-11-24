@@ -25,7 +25,7 @@ The cost of one server call is:
 | Data | `workPerByte` (10) units per byte of steps you emit and of the action your client sent | Every step is serialized, sent to every player and parsed again; data is usually most of the real cost |
 
 The platform's fixed cost per call (crossing into the sandbox) is not counted: you cannot change it, and the
-tick rate cap and the action rate limit already bound it.
+one 50 ms clock and the action rate limit already bound it, and a sleeping mode is not called at all.
 
 ## The two gates (`runtime/limits.json`)
 
@@ -79,7 +79,8 @@ action instead of keeping a running total, and comes out at about 1.4 million un
 
 When you are over budget, the breakdown says where to look:
 
-- **Ticks per second is large**: do less per tick, lower `tickRate`, or only emit steps for what changed.
+- **Ticks per second is large**: sleep when nothing moves (`ctx.sleepUntil`, `ctx.sleep`), do less per tick, or only
+  emit steps for what changed.
 - **The action term is large**: make actions cheaper, or reject invalid actions early (rejection is cheap).
 - **Data dominates**: send smaller steps (ids instead of whole objects, deltas instead of full state). `sync`
   is the one place to send everything.

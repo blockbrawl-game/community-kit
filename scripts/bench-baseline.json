@@ -1,25 +1,50 @@
 {
   "bloom-blocks": {
-    "maxCallUnits": 4671,
-    "unitsPerSecond": 137744
+    "maxCallUnits": 4681,
+    "unitsPerSecond": 135240,
+    "perPlayer": {
+      "unitsPerSecond": 67620,
+      "batchesPerSecond": 6.14,
+      "bytesPerSecond": 879
+    }
   },
   "duel-lite": {
-    "maxCallUnits": 4510,
-    "unitsPerSecond": 205064
+    "maxCallUnits": 4705,
+    "unitsPerSecond": 205740,
+    "perPlayer": {
+      "unitsPerSecond": 102870,
+      "batchesPerSecond": 7.36,
+      "bytesPerSecond": 1439
+    }
   },
   "stack-race": {
-    "maxCallUnits": 5545,
-    "unitsPerSecond": 165364
+    "maxCallUnits": 5555,
+    "unitsPerSecond": 166144,
+    "perPlayer": {
+      "unitsPerSecond": 41536,
+      "batchesPerSecond": 11.18,
+      "bytesPerSecond": 1171
+    }
   },
   "tap-rush": {
     "offline": true
   },
   "tile-frenzy": {
-    "maxCallUnits": 9369,
-    "unitsPerSecond": 245630
+    "maxCallUnits": 9329,
+    "unitsPerSecond": 238629,
+    "perPlayer": {
+      "unitsPerSecond": 29829,
+      "batchesPerSecond": 18.78,
+      "bytesPerSecond": 2237
+    }
   },
   "trail-clash": {
-    "maxCallUnits": 37221,
-    "unitsPerSecond": 75697
+    "maxCallUnits": 37201,
+    "unitsPerSecond": 75565,
+    "perPlayer": {
+      "unitsPerSecond": 18891,
+      "batchesPerSecond": 8.44,
+      "bytesPerSecond": 636
+    }
   }
 }

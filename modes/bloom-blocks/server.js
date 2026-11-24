@@ -1,8 +1,8 @@
 // Bloom Blocks: a turn-based placement puzzle, solo or as a two-player duel on one shared garden.
 //
-// The server is light on purpose (two ticks a second, only for the duel turn clock); the client does
-// all the visual work. That makes this mode the counterpart to Tile Frenzy when testing: low server
-// load, heavy rendering.
+// The server is light on purpose: it sleeps until the duel's turn deadline (`rest`), and a solo garden
+// is never ticked at all; the client does all the visual work. That makes this mode the counterpart to
+// Tile Frenzy when testing: low server load, heavy rendering.
 import { defineMode, reject } from '@blockbrawl/mode-sdk/server';
 import { HAND, MAX_PLACEMENTS, SHAPES, TURN_MS, anyFit, applyPlacement, emptyBoard, fits, ranking } from './shared.js';
 
@@ -17,6 +17,12 @@ function finish(state, ctx, why) {
   state.over = true;
   state.why = why;
   ctx.emit({ t: 'over', why });
+}
+
+/** No tick before the duel's turn deadline; none at all in a solo garden or once it is over. */
+function rest(state, ctx) {
+  if (state.over || state.players.length === 1) ctx.sleep();
+  else ctx.sleepUntil(state.turnEndsAt);
 }
 
 /** Hands the turn to the next player and ends the match if they cannot plant anything. */
@@ -44,6 +50,7 @@ export default defineMode({
       why: null,
     };
     for (let p = 0; p < ctx.players.length; p++) deal(state, p, ctx);
+    rest(state, ctx);
     return state;
   },
 
@@ -63,24 +70,27 @@ export default defineMode({
     ctx.emit({ t: 'place', p, k, x, y });
     if (state.hands[p].every((s) => s < 0)) deal(state, p, ctx);
     nextTurn(state, ctx);
+    rest(state, ctx);
   },
 
+  // Woken at the duel's turn deadline: the player on turn ran out of time.
   onTick(state, dtMs, ctx) {
-    if (state.over || state.players.length === 1) return;
-    if (ctx.timeMs >= state.turnEndsAt) {
+    if (!state.over && state.players.length > 1 && ctx.timeMs >= state.turnEndsAt) {
       ctx.emit({ t: 'timeout', p: state.turn });
       state.players[state.turn].streak = 0;
       nextTurn(state, ctx);
     }
+    rest(state, ctx);
   },
 
   onPlayerStatus(state, playerId, status, ctx) {
-    if (status !== 'forfeited' || state.over) return;
     const p = state.order.indexOf(playerId);
-    if (p < 0 || state.players[p].out) return;
-    state.players[p].out = true;
-    ctx.emit({ t: 'out', p });
-    finish(state, ctx, 'forfeit');
+    if (status === 'forfeited' && !state.over && p >= 0 && !state.players[p].out) {
+      state.players[p].out = true;
+      ctx.emit({ t: 'out', p });
+      finish(state, ctx, 'forfeit');
+    }
+    rest(state, ctx);
   },
 
   sync(state) {
