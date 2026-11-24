@@ -1,4 +1,4 @@
-// Action generator for `devkit test`: plants a random hand shape somewhere it fits, on its own turn.
+// Action generator for `brawl-modes test`: plants a random hand shape somewhere it fits, on its own turn.
 import { HAND, SIZE, fits } from '../shared.js';
 
 export function nextAction(model, playerId, rng) {

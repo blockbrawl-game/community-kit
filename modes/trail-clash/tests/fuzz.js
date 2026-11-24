@@ -1,4 +1,4 @@
-// Action generator for `devkit test`: turns now and then, and tries not to drive straight into a wall.
+// Action generator for `brawl-modes test`: turns now and then, and tries not to drive straight into a wall.
 import { DIRS, SIZE } from '../shared.js';
 
 export function nextAction(model, playerId, rng) {

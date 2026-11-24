@@ -20,6 +20,9 @@ The full typed definitions are in [`sdk/types.d.ts`](../sdk/types.d.ts). This pa
 
 - `id` must equal the folder name.
 - `tickRate` is how many times per second `onTick` runs. Use `0` for no ticking. The maximum is 30.
+- Every key, with its rules, is in [`schema/mode.schema.json`](../schema/mode.schema.json); add
+  `"$schema": "<path to that file>"` for completion in your editor (`brawl-modes new` does). Unknown keys fail
+  `check`. The store listing keys are in [listing.md](listing.md), offline modes in [offline-modes.md](offline-modes.md).
 
 ## Server: `defineMode`
 
@@ -55,7 +58,7 @@ Rules:
 | `emit(step, { to: playerId })` | send a step to one player only |
 | `log(...)` | debug output, shown in the dev kit |
 
-`Math.random()` and `Date` are replaced with the seeded generator and the match clock, so they are safe to use. There are no timers and no network.
+Use `ctx.rng` for every random choice and `ctx.timeMs` for time. The sandbox replaces `Math.random()` and `Date` with the same seeded generator and the match clock, but the source policy that review runs rejects `Math.random` anywhere in an online mode (server and client), so a mode that uses it does not pass `check`. For visual-only randomness in a client, use a small seeded generator of your own. There are no timers and no network.
 
 ## Client model: `createModel`
 
@@ -102,4 +105,4 @@ export function nextAction(model, playerId, rng) {
 }
 ```
 
-`devkit test` uses this to play random matches. It receives the client model, so it only knows what a real player would know.
+`brawl-modes test` uses this to play random matches. It receives the client model, so it only knows what a real player would know.

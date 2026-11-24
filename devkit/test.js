@@ -1,4 +1,4 @@
-// `devkit test`: the checks every mode must pass before review.
+// `brawl-modes test`: the checks every mode must pass before review.
 //
 //   fuzz         random matches driven by the mode's own action generator plus garbage input;
 //                the mode must never throw, and a rejected action must not change state
@@ -252,7 +252,7 @@ async function runChecks({ modeName, runs = 20, seed = 1, recordFile }, report) 
       completed.push({ seed: runSeed, players: outcome.players, inputs: host.inputs, outputHash: host.outputHash, stateHash: host.stateHash() });
     } catch (error) {
       const prefix = error instanceof TestFailure ? '' : 'fuzz: ';
-      fail(`${prefix}${error.message}\n      reproduce: devkit test ${modeName} --seed ${runSeed} --runs 1`);
+      fail(`${prefix}${error.message}\n      reproduce: brawl-modes test ${modeName} --seed ${runSeed} --runs 1`);
       if (error.details?.stack) console.log(`      ${String(error.details.stack).split('\n').slice(0, 4).join('\n      ')}`);
       break;
     }

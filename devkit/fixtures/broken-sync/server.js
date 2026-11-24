@@ -1,5 +1,5 @@
 // Deliberately broken: sync() forgets `b`, so a player who reconnects sees a different match from
-// one who never left. `devkit test` must report this as a sync failure.
+// one who never left. `brawl-modes test` must report this as a sync failure.
 import { defineMode, reject } from '@blockbrawl/mode-sdk/server';
 
 export default defineMode({

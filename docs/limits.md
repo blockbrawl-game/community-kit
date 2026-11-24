@@ -6,7 +6,8 @@ Server logic runs in a V8 isolate with nothing but the JavaScript language:
 
 - No network, files, timers, `eval` or `new Function`.
 - No typed arrays, `ArrayBuffer`, `DataView` or WebAssembly. Use plain arrays; state is JSON anyway.
-- `Math.random()` and `Date` are deterministic: a seeded generator and the match clock.
+- `Math.random()` and `Date` are deterministic: a seeded generator and the match clock. Still, write `ctx.rng` and
+  `ctx.timeMs`: the source policy rejects `Math.random` in every file of an online mode (see below).
 - Given the same seed and the same inputs, a mode must produce exactly the same steps.
 
 ## The client sandbox
@@ -21,17 +22,17 @@ Defined in [`runtime/limits.json`](../runtime/limits.json).
 | --- | --- | --- |
 | Tick rate | 30 per second | mode.json is rejected |
 | Time per call | 250 ms watchdog | match is aborted |
-| Time per call, p99 | 5 ms | warning in `devkit test` |
+| Time per call, p99 | 5 ms | warning in `brawl-modes test` |
 | State size | 256 KB | match is aborted |
 | Steps per call | 256 | match is aborted |
 | Step batch size | 16 KB | match is aborted |
 | Action size | 4 KB | action is rejected |
-| Server bundle | 256 KB | fails `devkit test` |
-| Built client | 5 MB | fails `devkit test` |
+| Server bundle | 256 KB | fails `brawl-modes test` |
+| Built client | 5 MB | fails `brawl-modes test` |
 
 The 250 ms watchdog exists to stop infinite loops. It is not a performance target: a healthy mode answers in well under a millisecond.
 
-## What `devkit test` checks
+## What `brawl-modes test` checks
 
 | Check | What it proves |
 | --- | --- |
@@ -45,7 +46,7 @@ The 250 ms watchdog exists to stop infinite loops. It is not a performance targe
 A failure prints the seed to reproduce it:
 
 ```bash
-node devkit/cli.js test my-mode --seed 7 --runs 1
+npx brawl-modes test my-mode --seed 7 --runs 1
 ```
 
 Deliberately broken modes in `devkit/fixtures/` show what failures look like: `broken-sync` and `broken-hidden-state` fail `test`; `broken-heavy` passes `test` but is over budget in `bench`.
@@ -55,3 +56,20 @@ Deliberately broken modes in `devkit/fixtures/` show what failures look like: `b
 `test` reports call times on your machine for information. Whether the server accepts the mode's performance is
 decided by `bench`, in work units that are the same on every machine: see [Benchmark](benchmark.md).
 `check` runs `test`, `bench`, the source policy and `build` together, exactly as review does.
+
+## The source policy
+
+`check` also searches every `.js`, `.html`, `.css` and `.json` file of the mode (except under `tests/`) for these,
+and fails on any match:
+
+| Not allowed | Why |
+|---|---|
+| `eval(`, `new Function(`, dynamic `import(` | Code must be what review read |
+| `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `sendBeacon` | Modes have no network |
+| `Worker`, `SharedWorker`, `ServiceWorker` | Not available in the frame |
+| `ArrayBuffer`, `SharedArrayBuffer`, typed arrays, `DataView` | Removed in the server runtime |
+| `Math.random` (online modes only) | Replays must be identical; use `ctx.rng` |
+
+It is a plain text search, so it also matches those words in comments and strings. Rephrase them ("download"
+instead of "fetch" in a description, for example). The rules are in
+[`devkit/policy.js`](../devkit/policy.js).

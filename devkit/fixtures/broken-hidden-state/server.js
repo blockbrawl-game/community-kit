@@ -1,5 +1,5 @@
 // Deliberately broken: `total` lives outside `state`, so it is lost when the match moves to a
-// fresh sandbox. `devkit test` must report this as a hydration failure.
+// fresh sandbox. `brawl-modes test` must report this as a hydration failure.
 import { defineMode, reject } from '@blockbrawl/mode-sdk/server';
 
 let total = 0;

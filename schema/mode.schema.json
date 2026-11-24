@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blockbrawl-game/community-kit/blob/main/schema/mode.schema.json",
+  "title": "BlockBrawl community mode manifest (mode.json)",
+  "description": "Describes one community mode: identity, player counts, timing, files and its store listing. `brawl-modes check` enforces the same rules (devkit/build.js validateManifest), and the server enforces them again.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "version", "players", "client"],
+  "properties": {
+    "$schema": { "type": "string", "description": "Path or URL of this schema, for editor support. Ignored by the kit and the server." },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,31}$",
+      "description": "Unique mode id: 3-32 chars, lowercase letters, digits and dashes, starting with a letter. Must equal the folder name. Never change it after the first release."
+    },
+    "name": { "type": "string", "minLength": 1, "description": "Display name in the store." },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semver. Bump it for every change you submit: the server approves one exact build per id@version."
+    },
+    "sdk": { "type": "string", "pattern": "^0\\.1(\\..*)?$", "description": "The SDK line the mode is written against. This kit runs SDK 0.1." },
+    "author": { "type": "string", "description": "Who made it, as shown in the store." },
+    "runtime": {
+      "enum": ["online", "offline"],
+      "default": "online",
+      "description": "online: server rules, multiplayer, verified results. offline: client only, no server, nothing verified (see docs/offline-modes.md)."
+    },
+    "tagline": { "type": "string", "maxLength": 80, "description": "One line for the store card." },
+    "description": { "type": "string", "maxLength": 2000, "description": "The store page text." },
+    "tags": {
+      "type": "array",
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,19}$" },
+      "description": "Store filters: up to 8 tags, 2-20 chars each, lowercase letters, digits, dashes."
+    },
+    "players": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min", "max"],
+      "properties": {
+        "min": { "type": "integer", "minimum": 1, "maximum": 8 },
+        "max": { "type": "integer", "minimum": 1, "maximum": 8 }
+      },
+      "description": "How many players a match has: 1 <= min <= max <= 8. Offline modes use 1 and 1."
+    },
+    "tickRate": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 30,
+      "description": "Server ticks per second (onTick). 0 for turn-based modes. Required for online modes. Higher costs more: see docs/benchmark.md."
+    },
+    "orientation": {
+      "enum": ["portrait", "landscape", "any"],
+      "default": "any",
+      "description": "The screen orientation the client is designed for."
+    },
+    "server": { "type": "string", "description": "Online only: the server entry file, usually server.js." },
+    "client": { "type": "string", "description": "The client HTML document, usually client/index.html." },
+    "clientModel": { "type": "string", "description": "Online only: the client model module (no DOM), usually client/model.js." },
+    "fuzz": { "type": "string", "description": "Online only: the module exporting nextAction(model, playerId, rng), used by test and bench." }
+  },
+  "if": { "properties": { "runtime": { "const": "offline" } }, "required": ["runtime"] },
+  "then": { "not": { "anyOf": [{ "required": ["server"] }, { "required": ["clientModel"] }, { "required": ["fuzz"] }] } },
+  "else": { "required": ["tickRate", "server", "clientModel"] }
+}

@@ -6,7 +6,7 @@ The server never sends its state. It sends **steps**: small facts about what cha
 
 > Every change to `state` that a client can observe must be carried by a step, and `sync` must describe the same state those steps add up to.
 
-`devkit test` checks this directly: it compares a client that saw every step with one that joined through `sync` at a random moment. If they differ, either a step is missing something or `sync` is.
+`brawl-modes test` checks this directly: it compares a client that saw every step with one that joined through `sync` at a random moment. If they differ, either a step is missing something or `sync` is.
 
 ## What the platform does for you
 
@@ -55,4 +55,4 @@ Keep one `apply(step)` function in the client model and use it for both sync and
 - [ ] Every `state` mutation in `onAction`, `onTick` and `onPlayerStatus` has a step next to it.
 - [ ] `sync` includes every field the client model keeps.
 - [ ] `snapshot()` returns everything the model derived from steps, and nothing predicted locally.
-- [ ] `devkit test` passes.
+- [ ] `brawl-modes test` passes.

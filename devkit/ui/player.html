@@ -38,7 +38,7 @@ function report() {
   if (parent !== window) parent.postMessage({ bbDev: 'stat', playerId, lastSeq: shell.lastSeq, ...stats }, location.origin);
 }
 
-// `devkit dev` runs the match in the dev server; `devkit dev --remote` connects to the real gateway.
+// `brawl-modes dev` runs the match in the dev server; `brawl-modes dev --remote` connects to the real gateway.
 async function createTransport() {
   const info = await (await fetch('/api/info')).json();
   if (!info.remote) return localTransport({ playerId });

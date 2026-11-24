@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__MODE_NAME__</title>
+<style>
+  :root { --bg: #14161c; --panel: #1f232c; --text: #eef0f4; --muted: #9aa3b2; --accent: #5aa9ff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--text);
+         font: 16px/1.4 system-ui, sans-serif; user-select: none; touch-action: manipulation; }
+  main { width: min(420px, 100vw - 32px); text-align: center; }
+  .count { font-size: 96px; font-weight: 800; }
+  .time { color: var(--muted); }
+  button { width: 100%; padding: 32px 0; margin-top: 24px; font-size: 28px; font-weight: 800; border: 0;
+           border-radius: 16px; background: var(--accent); color: #fff; }
+  button:disabled { background: var(--panel); color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <div class="time" id="time">Tap to start</div>
+  <div class="count" id="count">0</div>
+  <button id="tap">TAP</button>
+  <button id="again" hidden>Play again</button>
+</main>
+<script type="module">
+// An offline mode runs entirely here: no server, no network. Its score is shown but not verified, so it earns
+// nothing in the game. Math.random is fine in an offline mode (nothing is replayed).
+import { connectOffline } from '@blockbrawl/mode-sdk/offline';
+
+const DURATION_MS = 10_000;
+const $ = (id) => document.getElementById(id);
+const game = connectOffline();
+let count = 0;
+let endsAt = 0;
+
+function tick() {
+  const left = endsAt - performance.now();
+  if (left <= 0) {
+    $('time').textContent = 'Time!';
+    $('tap').disabled = true;
+    $('again').hidden = false;
+    game.finish({ score: count });
+    return;
+  }
+  $('time').textContent = `${(left / 1000).toFixed(1)}s`;
+  requestAnimationFrame(tick);
+}
+
+$('tap').addEventListener('pointerdown', () => {
+  if (endsAt === 0) { endsAt = performance.now() + DURATION_MS; requestAnimationFrame(tick); }
+  if (performance.now() < endsAt) $('count').textContent = ++count;
+});
+
+$('again').addEventListener('click', () => {
+  count = 0; endsAt = 0;
+  $('count').textContent = '0';
+  $('time').textContent = 'Tap to start';
+  $('tap').disabled = false;
+  $('again').hidden = true;
+});
+</script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-// `devkit dev` for an offline mode: serves the shell and the mode client. There is no match to run.
+// `brawl-modes dev` for an offline mode: serves the shell and the mode client. There is no match to run.
 import http from 'node:http';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';

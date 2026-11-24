@@ -1,4 +1,4 @@
-// Action generator for `devkit test`. It sees only what a real client sees: the client model.
+// Action generator for `brawl-modes test`. It sees only what a real client sees: the client model.
 import { canMove } from '../shared.js';
 
 export function nextAction(model, playerId, rng) {
