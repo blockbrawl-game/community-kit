@@ -41,9 +41,10 @@ export class Outbox {
   /** One call's steps for one player (JSON texts), with the action id when the player is the actor. */
   steps(p, stepJsons, timeMs, ackActionId) {
     if (stepJsons.length > 0) {
-      const pending = this.pending[p];
       const inner = stepJsons.reduce((sum, json) => sum + json.length, 0) + stepJsons.length - 1;
-      if (pending.steps.length > 0 && pending.chars + 1 + inner + 2 > this.maxStepsChars) this.#send(p, undefined, pending.timeMs);
+      const before = this.pending[p];
+      if (before.steps.length > 0 && before.chars + 1 + inner + 2 > this.maxStepsChars) this.#send(p, undefined, before.timeMs);
+      const pending = this.pending[p]; // #send starts a fresh list
       pending.chars += (pending.steps.length > 0 ? 1 : 0) + inner;
       pending.steps.push(...stepJsons);
       pending.timeMs = timeMs;
