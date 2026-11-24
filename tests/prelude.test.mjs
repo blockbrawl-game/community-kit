@@ -20,7 +20,7 @@ function sandboxFor(body) {
 
 test('a call that does nothing returns the empty string', () => {
   const sandbox = sandboxFor('onAction() {}, onTick() {},');
-  assert.equal(sandbox.call('tick', [50, 50]).raw, '');
+  assert.equal(sandbox.call('tick', [50]).raw, '');
   assert.equal(sandbox.call('action', [0, '{}', 60]).raw, '');
 });
 
@@ -85,4 +85,42 @@ test('rejections and errors are frames too, with their logs', () => {
   assert.equal(rejected.rejected, 'nope');
   assert.deepEqual(rejected.logs, ['before']);
   assert.throws(() => sandbox.call('action', [0, '{}', 20]), /threw: boom/);
+});
+
+test('a mode without onTick is asleep from setup on; ctx.sleep and sleepUntil are reported once', () => {
+  const tickless = new Sandbox(`var __bbMode = { default: {
+    setup() { return {}; }, onAction() {}, sync() { return []; }, result() { return null; },
+  } };`);
+  tickless.playerIds = PLAYERS.map((p) => p.id);
+  assert.equal(tickless.call('setup', [JSON.stringify({ players: PLAYERS, seed: 1 })]).out.wake, -1);
+  assert.equal(tickless.call('action', [0, '{}', 10]).raw, ''); // an action does not wake a mode with no tick
+
+  const sandbox = sandboxFor(`onAction(state, action, ctx) {
+    if (action.until !== undefined) ctx.sleepUntil(action.until);
+    if (action.sleep) ctx.sleep();
+    if (action.no) { const e = new Error('no'); e.__bbReject = true; e.reason = 'no'; throw e; }
+  }, onTick(state, dtMs, ctx) { state.seen.push(dtMs); ctx.sleepUntil(1000); },`);
+  // Awake after setup (the host's default), so setup reports nothing.
+  assert.equal(sandbox.call('tick', [50]).out.wake, 1000);
+  assert.equal(sandbox.call('action', [0, '{"until":1000}', 60]).raw, ''); // unchanged: nothing to report
+  assert.equal(sandbox.call('action', [0, '{}', 70]).out.wake, 0); // an action wakes the mode
+  assert.equal(sandbox.call('action', [0, '{"sleep":true}', 80]).out.wake, -1);
+  // A rejected action changes nothing, its sleep included.
+  const rejected = sandbox.call('action', [0, '{"until":5,"no":true}', 90]).out;
+  assert.equal(rejected.rejected, 'no');
+  assert.equal(rejected.wake, null);
+  // dtMs is the time since the previous onTick, however long the mode slept.
+  sandbox.call('tick', [1000]);
+  assert.deepEqual(JSON.parse(sandbox.exportState()).state.seen, [50, 950]);
+});
+
+test('the wake state survives export and import', () => {
+  const body = 'onAction(state, action, ctx) { ctx.sleepUntil(777); }, onTick(state, dtMs, ctx) { state.seen.push(dtMs); },';
+  const first = sandboxFor(body);
+  first.call('tick', [100]);
+  first.call('action', [0, '{}', 120]);
+  const second = sandboxFor(body);
+  assert.equal(second.importState(first.exportState()), 777);
+  second.call('tick', [800]);
+  assert.deepEqual(JSON.parse(second.exportState()).state.seen, [100, 700]);
 });

@@ -31,6 +31,13 @@ export interface Context {
   readonly timeMs: number;
   /** Sends a step to every player, or only to one player with `{ to: playerId }`. */
   emit(step: Step, options?: { to?: string }): void;
+  /**
+   * No onTick before match time `timeMs` (it runs on the first 50 ms slot at or after it). Lasts until the next
+   * call: an action or a status change wakes the mode again unless that call sleeps too.
+   */
+  sleepUntil(timeMs: number): void;
+  /** No onTick until the next action or status change. */
+  sleep(): void;
   log(...args: unknown[]): void;
 }
 
@@ -51,7 +58,11 @@ export interface ModeServer<S = any, A = any> {
   setup(ctx: Context): S;
   /** Validate first, then mutate `state` and emit steps. Throw `reject(reason)` if illegal. */
   onAction(state: S, action: A, ctx: Context): void;
-  /** Called on the 50 ms grid, every round(20 / tickRate) slots, when mode.json sets tickRate > 0. dtMs is a multiple of 50. */
+  /**
+   * Called on every 50 ms slot while the mode is awake (see ctx.sleepUntil and ctx.sleep). `dtMs` is the time since
+   * the previous onTick: 50 normally, more after a sleep or when the server ran late. Leave it out if nothing ever
+   * moves on its own.
+   */
   onTick?(state: S, dtMs: number, ctx: Context): void;
   onPlayerStatus?(state: S, playerId: string, status: PlayerStatus, ctx: Context): void;
   /**

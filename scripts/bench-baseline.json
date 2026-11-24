@@ -1,50 +1,50 @@
 {
   "bloom-blocks": {
-    "maxCallUnits": 4671,
-    "unitsPerSecond": 137744,
+    "maxCallUnits": 4681,
+    "unitsPerSecond": 135240,
     "perPlayer": {
-      "unitsPerSecond": 68872,
-      "batchesPerSecond": 1.48,
-      "bytesPerSecond": 209
+      "unitsPerSecond": 67620,
+      "batchesPerSecond": 6.41,
+      "bytesPerSecond": 905
     }
   },
   "duel-lite": {
-    "maxCallUnits": 4510,
-    "unitsPerSecond": 205064,
+    "maxCallUnits": 4705,
+    "unitsPerSecond": 205740,
     "perPlayer": {
-      "unitsPerSecond": 102532,
-      "batchesPerSecond": 1.52,
-      "bytesPerSecond": 298
+      "unitsPerSecond": 102870,
+      "batchesPerSecond": 7.36,
+      "bytesPerSecond": 1439
     }
   },
   "stack-race": {
     "maxCallUnits": 5545,
-    "unitsPerSecond": 165364,
+    "unitsPerSecond": 165641,
     "perPlayer": {
-      "unitsPerSecond": 41341,
-      "batchesPerSecond": 11.84,
-      "bytesPerSecond": 1144
+      "unitsPerSecond": 41410,
+      "batchesPerSecond": 12.01,
+      "bytesPerSecond": 1159
     }
   },
   "tap-rush": {
     "offline": true
   },
   "tile-frenzy": {
-    "maxCallUnits": 9299,
-    "unitsPerSecond": 241746,
+    "maxCallUnits": 9309,
+    "unitsPerSecond": 241026,
     "perPlayer": {
-      "unitsPerSecond": 30218,
-      "batchesPerSecond": 28.14,
-      "bytesPerSecond": 2778
+      "unitsPerSecond": 30128,
+      "batchesPerSecond": 27.22,
+      "bytesPerSecond": 2677
     }
   },
   "trail-clash": {
-    "maxCallUnits": 37221,
-    "unitsPerSecond": 75697,
+    "maxCallUnits": 37201,
+    "unitsPerSecond": 75745,
     "perPlayer": {
-      "unitsPerSecond": 18924,
-      "batchesPerSecond": 9.83,
-      "bytesPerSecond": 730
+      "unitsPerSecond": 18936,
+      "batchesPerSecond": 8.89,
+      "bytesPerSecond": 658
     }
   }
 }

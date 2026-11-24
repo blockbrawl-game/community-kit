@@ -28,7 +28,7 @@ and no match. Use it for single-player toys, practice games and experiments.
 }
 ```
 
-`runtime` must be `"offline"`. `server`, `clientModel` and `fuzz` must be left out; `tickRate` may be.
+`runtime` must be `"offline"`. `server`, `clientModel` and `fuzz` must be left out.
 
 ## The client
 

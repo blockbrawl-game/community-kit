@@ -12,7 +12,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { bundleClient, bundleServer, limits, loadMode } from './build.js';
 import { MatchHost, devPlayers } from './match.js';
-import { periodMs, slotsPerTick } from './clock.js';
+import { SLOT_MS } from './clock.js';
 
 const MAX_ITERATIONS = 4000;
 const GARBAGE = [null, 42, 'x', [], {}, { t: 'nope' }, { t: 'place' }, { t: 'move', dx: 99 }, { t: 'place', i: -1, x: 1e9, y: 'a' }, { t: 'x'.repeat(8000) }];
@@ -104,11 +104,13 @@ export function fuzzRun({ mode, bundle, createModel, nextAction, seed, playerCou
     return JSON.stringify([snapshot.state, snapshot.rng]);
   }
 
+  let actAt = 0;
   function act(playerId, action, isGarbage) {
     const client = clients.get(playerId);
     const actionId = `f${counts.actions++}`;
     const before = stateAndRng();
-    host.action(playerId, actionId, action, host.timeMs);
+    host.advanceTo(actAt);
+    host.action(playerId, actionId, action, actAt);
     if (isGarbage) counts.garbage++;
     if (client.rejected.has(actionId)) {
       counts.rejected++;
@@ -126,14 +128,14 @@ export function fuzzRun({ mode, bundle, createModel, nextAction, seed, playerCou
     client.synced = true;
   }
 
-  // One iteration is one tick on the server's 50 ms grid (devkit/clock.js): 2 Hz ticks every 500 ms, 30 Hz every 50.
-  const slots = slotsPerTick(manifest.tickRate);
-  const dtMs = slots > 0 ? periodMs(slots) : 100;
+  // One iteration is 100 ms of match time: two slots of the server's 50 ms grid (devkit/clock.js), each ticked if the
+  // mode is awake then, and the iteration's actions at one time between slots, as players' actions arrive.
+  let hostMs = 0;
   let forfeitUsed = false;
   let iterations = 0;
   for (; iterations < MAX_ITERATIONS && !host.ended; iterations++) {
-    if (slots > 0) host.advanceTo(host.timeMs + dtMs);
-    else host.timeMs += dtMs;
+    for (let slot = 0; slot < 2; slot++) host.advanceTo(hostMs += SLOT_MS);
+    actAt = hostMs + Math.floor(rng.next() * SLOT_MS);
 
     for (const player of rng.shuffle([...players])) {
       if (host.ended) break;
@@ -176,7 +178,7 @@ function replay({ mode, bundle, players, seed, inputs, hydrateEvery }) {
   inputs.forEach((input, index) => {
     if (hydrateEvery && index > 0 && index % hydrateEvery === 0) host.hydrate();
     if (input.op === 'action') host.action(input.playerId, input.actionId, input.action, input.timeMs);
-    else if (input.op === 'tick') host.tick(input.dtMs, input.timeMs);
+    else if (input.op === 'tick') host.tick(input.timeMs);
     else if (input.op === 'status') host.setStatus(input.playerId, input.status);
   });
   return { outputHash: host.outputHash, stateHash: host.stateHash() };

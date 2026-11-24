@@ -1,7 +1,7 @@
 # Tile Frenzy
 
-Up to 8 players race to grab glowing tiles on a shared board, at 30 ticks a second. The stress test: the most
-players and the highest tick rate the platform allows.
+Up to 8 players race to grab glowing tiles on a shared board, ticked on every 50 ms slot. The stress test: the
+most players and a mode that never sleeps.
 
 **What it teaches**
 
@@ -15,7 +15,7 @@ players and the highest tick rate the platform allows.
 | | |
 |---|---|
 | Players | 1-8 |
-| Tick rate | 30 (the maximum) |
+| Ticks | every 50 ms slot (never sleeps) |
 
 ```bash
 npx brawl-modes dev tile-frenzy --players 4

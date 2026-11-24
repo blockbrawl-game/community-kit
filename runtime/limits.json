@@ -1,5 +1,4 @@
 {
-  "maxTickRate": 30,
   "maxCallMs": 250,
   "warnCallP99Ms": 5,
   "maxHeapMb": 64,

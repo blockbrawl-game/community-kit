@@ -51,7 +51,7 @@ function countedReplay({ manifest, bundle, players, seed, inputs }) {
   host.start();
   for (const input of inputs) {
     if (input.op === 'action') host.action(input.playerId, input.actionId, input.action, input.timeMs);
-    else if (input.op === 'tick') host.tick(input.dtMs, input.timeMs);
+    else if (input.op === 'tick') host.tick(input.timeMs);
     else if (input.op === 'status') host.setStatus(input.playerId, input.status);
   }
   // A join or reconnect costs one sync() per player; count one for each.
@@ -116,8 +116,8 @@ export async function runBench({ modeName, runs = 10, seed = 1, report = {} }) {
       codeUnits += w.units;
       dataBytes += w.bytes;
     }
-    let runMs = 0;
-    for (const input of host.inputs) if (input.op === 'tick') runMs += input.dtMs;
+    // Match time, not the sum of tick deltas: a mode that sleeps is not ticked for much of it.
+    const runMs = host.timeMs;
     tickMs += runMs;
     playerSeconds += players.length * (runMs / 1000);
     sentTotal.batches += counted.sent.batches;
@@ -154,7 +154,7 @@ export async function runBench({ modeName, runs = 10, seed = 1, report = {} }) {
     line(secondOk, `sustained cost: ${perSecond} units per match-second (limit ${gates.maxWorkPerSecond})`);
     console.log(`        = ticks ${tickPerSecond}/s + ${manifest.players.max} players × ${limits.maxActionsPerSecond} actions/s × ${actionP95} (p95 action)`);
     if (!callOk) failures.push(`the most expensive call costs ${maxCall} units, over the limit of ${gates.maxWorkPerCall}. Spread the work over ticks or keep less state per call.`);
-    if (!secondOk) failures.push(`one match costs ${perSecond} units per second, over the limit of ${gates.maxWorkPerSecond}. Lower the tick rate, do less per tick, or make actions cheaper.`);
+    if (!secondOk) failures.push(`one match costs ${perSecond} units per second, over the limit of ${gates.maxWorkPerSecond}. Sleep when nothing moves (ctx.sleepUntil), do less per tick, or make actions cheaper.`);
     console.log(`\n  Of all cost: ${codeShare}% code, ${100 - codeShare}% data (${dataBytes} bytes over ${runs} matches).`);
     console.log(`  Per player: ${perPlayer.unitsPerSecond} units, ${perPlayer.batchesPerSecond} batches and ${perPlayer.bytesPerSecond} bytes sent per second.`);
   } else {

@@ -5,8 +5,9 @@ export const W = 6;
 export const H = 12;
 export const FULL_ROW = (1 << W) - 1;
 export const MATCH_MS = 90000;
-export const START_FALL_TICKS = 5; // ticks between gravity steps at the start (10 ticks per second)
-export const MIN_FALL_TICKS = 2;
+export const START_FALL_MS = 500; // time between gravity steps at the start
+export const MIN_FALL_MS = 200;
+export const FALL_STEP_MS = 100; // gravity gets this much faster every SPEED_UP_EVERY_MS
 export const SPEED_UP_EVERY_MS = 15000;
 export const ROW_SCORE = 10;
 
@@ -54,6 +55,6 @@ export function lock(board, piece) {
   return cleared;
 }
 
-export function fallTicksAt(timeMs) {
-  return Math.max(MIN_FALL_TICKS, START_FALL_TICKS - Math.floor(timeMs / SPEED_UP_EVERY_MS));
+export function fallMsAt(timeMs) {
+  return Math.max(MIN_FALL_MS, START_FALL_MS - FALL_STEP_MS * Math.floor(timeMs / SPEED_UP_EVERY_MS));
 }

@@ -74,6 +74,8 @@ export async function startDevServer({ modeName, port = 5173, playerCount, seed 
     }
     flushLogs();
     if (host.ended) stopTicker();
+    // Any call can change when the mode wants its next tick (ctx.sleepUntil, or an action waking it).
+    else armTicker();
   }
 
   function flushLogs() {
@@ -104,7 +106,6 @@ export async function startDevServer({ modeName, port = 5173, playerCount, seed 
   function onTicker() {
     ticker = null;
     guard(() => { startedAt += host.advanceTo(hostNow()); });
-    armTicker();
   }
 
   function startTicker() {
@@ -248,7 +249,6 @@ export async function startDevServer({ modeName, port = 5173, playerCount, seed 
           // A tick that is due runs first; the action keeps its exact time.
           if (running) startedAt += host.advanceTo(hostNow());
           host.action(playerId, message.actionId, message.action, running ? hostNow() : host.timeMs);
-          armTicker();
         }
       });
       if (conn.latencyMs > 0) setTimeout(handle, conn.latencyMs);

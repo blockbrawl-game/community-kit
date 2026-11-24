@@ -11,7 +11,7 @@
 import { createHash } from 'node:crypto';
 import { Sandbox, ModeError } from './sandbox.js';
 import { limits as defaultLimits } from './build.js';
-import { slotsPerTick, due, nextTickMs } from './clock.js';
+import { due, nextTickMs } from './clock.js';
 
 export class MatchHost {
   /**
@@ -33,9 +33,10 @@ export class MatchHost {
     this.limits = { ...defaultLimits, ...limits };
 
     this.countWork = countWork === true;
-    this.slotsPerTick = slotsPerTick(manifest.tickRate);
     this.sandbox = this.#newSandbox();
     this.timeMs = 0;
+    // When the mode wants its next tick (devkit/clock.js): 0 for the next slot, a match time, or -1 (ASLEEP).
+    this.wake = 0;
     this.seq = new Map(players.map((p) => [p.id, 0]));
     this.result = null;
     this.aborted = null;
@@ -80,35 +81,31 @@ export class MatchHost {
     this.#run('action', [this.#indexOf(playerId), actionText, this.timeMs], { actorId: playerId, actionId });
   }
 
-  /**
-   * @param {number} dtMs time since the previous tick, as the mode sees it
-   * @param {number} [atTimeMs] the tick's place on the grid; an action between ticks moves the clock off it, so this
-   *   is not always timeMs + dtMs (journals from before the grid leave it out)
-   */
-  tick(dtMs, atTimeMs) {
+  /** Ticks the mode at grid slot atTimeMs. The prelude computes dtMs: the time since the previous onTick. */
+  tick(atTimeMs) {
     if (this.ended) return;
-    this.timeMs = Math.max(this.timeMs, atTimeMs ?? this.timeMs + dtMs);
-    this.inputs.push({ op: 'tick', dtMs, timeMs: this.timeMs });
-    this.#run('tick', [dtMs, this.timeMs], {});
+    this.timeMs = Math.max(this.timeMs, atTimeMs);
+    this.inputs.push({ op: 'tick', timeMs: this.timeMs });
+    this.#run('tick', [this.timeMs], {});
   }
 
   /**
-   * Runs the tick that is due at host match time hostMs (devkit/clock.js), as the server's timer does: once, with
-   * every period that passed up to the lag cap. Call it before an action at hostMs, so the action never comes before
-   * a tick that was due. Returns the milliseconds of lag beyond the cap that were dropped: the caller's clock should
-   * fall behind by that much, as the server's does.
+   * Runs the tick that is due at host match time hostMs (devkit/clock.js), as the server's timer does: once, on
+   * the latest slot. Call it before an action at hostMs, so the action never comes before a tick that was due.
+   * Returns the milliseconds of lag beyond the cap that were dropped: the caller's clock should fall behind by
+   * that much, as the server's does.
    */
   advanceTo(hostMs) {
     if (this.ended) return 0;
-    const tick = due(this.timeMs, hostMs, this.slotsPerTick);
+    const tick = due(this.timeMs, hostMs, this.wake);
     if (!tick) return 0;
-    this.tick(tick.dtMs, tick.atMs);
+    this.tick(tick.atMs);
     return tick.droppedMs;
   }
 
-  /** Milliseconds from host match time hostMs until the next tick is due; Infinity for a mode without a tick. */
+  /** Milliseconds from host match time hostMs until the next tick is due; Infinity while the mode sleeps. */
   msToNextTick(hostMs) {
-    const next = this.ended ? null : nextTickMs(this.timeMs, this.slotsPerTick);
+    const next = this.ended ? null : nextTickMs(this.timeMs, this.wake);
     return next === null ? Infinity : Math.max(0, next - hostMs);
   }
 
@@ -158,7 +155,7 @@ export class MatchHost {
     this.sandbox.callTimes = previous.callTimes;
     this.sandbox.work = previous.work;
     this.sandbox.logs = previous.logs;
-    this.sandbox.importState(snapshot);
+    this.wake = this.sandbox.importState(snapshot);
   }
 
   stateHash() {
@@ -178,6 +175,7 @@ export class MatchHost {
     const { out, raw } = this.#call(fn, args);
     // An empty output (nothing happened) leaves the hash as it is, on the server as here.
     if (raw !== '') this.outputHash = createHash('sha256').update(this.outputHash).update(raw).digest('hex');
+    if (out.wake !== null) this.wake = out.wake;
 
     if (out.rejected !== null) {
       if (actorId) this.#send(actorId, { kind: 'rejected', actionId, reason: out.rejected });

@@ -134,8 +134,11 @@ export class Sandbox {
     return this.#plain('exportState', []).raw;
   }
 
+  /** Returns the restored wake time (devkit/wire.js). */
   importState(snapshotJson) {
     const { raw } = this.#plain('importState', [snapshotJson]);
-    if (raw !== '') throw new ModeError(`importState failed: ${decodeFrames(raw).error}`);
+    const out = decodeFrames(raw);
+    if (out.error !== null || out.wake === null) throw new ModeError(`importState failed: ${out.error}`);
+    return out.wake;
   }
 }

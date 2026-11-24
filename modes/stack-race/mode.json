@@ -6,7 +6,6 @@
   "author": "BlockBrawl",
   "description": "Real-time falling bars, one well per player. Reference mode for ticking and client prediction.",
   "players": { "min": 1, "max": 4 },
-  "tickRate": 10,
   "orientation": "portrait",
   "server": "server.js",
   "client": "client/index.html",

@@ -9,7 +9,6 @@
   "description": "A turn-based starting point: players take turns adding 1, 2 or 3 to a shared total, and whoever brings it to 21 wins. Replace the rules with your own.",
   "tags": ["turn-based", "party"],
   "players": { "min": 2, "max": 4 },
-  "tickRate": 0,
   "orientation": "portrait",
   "server": "server.js",
   "client": "client/index.html",

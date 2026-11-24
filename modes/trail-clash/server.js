@@ -6,7 +6,7 @@
 import { defineMode, reject } from '@blockbrawl/mode-sdk/server';
 import {
   MATCH_MS, SHRINK_AT_MS, SHRINK_EVERY_MS, SIZE,
-  advance, canTurn, moveTicksAt, ranking, shrink, startGrid, startPlayers,
+  advance, canTurn, moveMsAt, ranking, shrink, startGrid, startPlayers,
 } from './shared.js';
 
 function aliveCount(state) {
@@ -31,8 +31,8 @@ export default defineMode({
       grid: startGrid(players),
       players,
       queues: players.map(() => []),
-      moveTicks: moveTicksAt(0),
-      moveIn: moveTicksAt(0),
+      moveMs: moveMsAt(0),
+      moveIn: moveMsAt(0),
       moves: 0,
       ring: -1,
       nextShrinkMs: SHRINK_AT_MS,
@@ -57,10 +57,10 @@ export default defineMode({
   onTick(state, dtMs, ctx) {
     if (state.over) return;
 
-    const moveTicks = moveTicksAt(ctx.timeMs);
-    if (moveTicks !== state.moveTicks) {
-      state.moveTicks = moveTicks;
-      ctx.emit({ t: 'speed', n: moveTicks });
+    const moveMs = moveMsAt(ctx.timeMs);
+    if (moveMs !== state.moveMs) {
+      state.moveMs = moveMs;
+      ctx.emit({ t: 'speed', n: moveMs });
     }
 
     if (ctx.timeMs >= state.nextShrinkMs && state.ring < SIZE / 2 - 2) {
@@ -72,8 +72,10 @@ export default defineMode({
       if (state.over) return;
     }
 
-    if (--state.moveIn > 0) return;
-    state.moveIn = state.moveTicks;
+    // Movement in time, not ticks: a late tick (larger dtMs) still moves the trails at most one cell.
+    state.moveIn -= dtMs;
+    if (state.moveIn > 0) return;
+    state.moveIn = state.moveMs;
     const dirs = state.players.map((pl, p) => (state.queues[p].length ? state.queues[p].shift() : pl.dir));
     state.moves++;
     advance(state.grid, state.players, dirs, state.moves);
@@ -101,7 +103,7 @@ export default defineMode({
       queues: state.queues,
       moves: state.moves,
       ring: state.ring,
-      moveTicks: state.moveTicks,
+      moveMs: state.moveMs,
       endsAt: MATCH_MS,
       over: state.over,
     }];

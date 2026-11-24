@@ -29,8 +29,8 @@ re-approved with the new kit. Every entry below says whether build output change
 
 Towards the unified runner (one tick for every mode, cheaper calls, per-player costs).
 
-- **Prelude wire format v2** (`runtime/prelude.js`, `devkit/wire.js`). Calls take plain arguments
-  (`tick(dt, t)`, `action(playerIndex, actionText, t)`, `status(playerIndex, status, t)`, `sync(playerIndex)`) and
+- **Prelude wire format v3** (`runtime/prelude.js`, `devkit/wire.js`). Calls take plain arguments
+  (`tick(t)`, `action(playerIndex, actionText, t)`, `status(playerIndex, status, t)`, `sync(playerIndex)`) and
   return length-framed records instead of JSON. A call that does nothing returns the empty string. The prelude
   captures the built-ins it uses before a mode runs, so a mode that replaces `JSON` or array methods can no longer
   forge what the host reads, and it parses the action text itself (invalid JSON is rejected as `invalid_action`), so
@@ -39,17 +39,28 @@ Towards the unified runner (one tick for every mode, cheaper calls, per-player c
   garbage collection timing.
 - `bench` reports `perPlayer`: units, batches and bytes per player-second; the baseline includes them.
 - The output hash now skips calls that return nothing, on both hosts.
-- **One 50 ms grid for every match** (`devkit/clock.js`, the server's `MatchClock`). `onTick` runs every
-  `round(20 / tickRate)` slots, so `dtMs` is a multiple of 50: rates of 2, 10 and 20 are unchanged, 30 runs at 20 a
-  second, and in-between rates round to whole slots. A late tick carries the time that passed (up to 200 ms) instead
-  of a burst of ticks. Actions keep their exact time between ticks, and a tick that is due runs first, in `dev` as
-  on the server (`MatchHost.advanceTo`). `tickRate` keeps its rules (0-30), so no mode stops loading.
-- A tick's journal entry now replays at its recorded `timeMs` (`MatchHost.tick(dtMs, atTimeMs)`): an action between
-  ticks moves the clock off the grid, so a tick is not always `timeMs + dtMs`. Old recordings replay as before.
+- **One clock for every mode; `tickRate` is gone.** Every match runs on a 50 ms grid (`devkit/clock.js`, the
+  server's `MatchClock`). A mode with `onTick` is ticked on every slot while it is awake, and `dtMs` is the time
+  since its previous `onTick`. `mode.json` no longer has `tickRate` (the key now fails `check`), and
+  `maxTickRate` left `runtime/limits.json`.
+- **`ctx.sleepUntil(t)` and `ctx.sleep()`**: skip ticks until match time `t`, or until the next action or status
+  change. An action or status change wakes the mode unless that call sleeps again; a rejected action changes
+  nothing. The prelude reports the wake time in a new `W` record and keeps it in the exported state. A sleeping
+  mode costs the server nothing: duel-lite is now ticked about once per turn instead of twice a second.
+- A late tick runs once on the latest slot (at most four slots late; the rest is dropped). Actions keep their exact
+  time between ticks, and a tick that is due runs first, in `dev` as on the server (`MatchHost.advanceTo`).
+  `MatchHost.tick(atTimeMs)` replays a tick at its recorded slot; journal tick entries no longer carry `dtMs`.
+- The examples and templates move by time, not by counting ticks: duel-lite and bloom-blocks sleep until their turn
+  deadlines, stack-race and trail-clash keep gravity and movement in milliseconds (`speed` steps now carry
+  milliseconds), the realtime template sleeps while nobody moves.
+- The fuzz loop advances 100 ms per iteration, slot by slot, with actions between slots. `bench` measures per second
+  of match time rather than per second of ticks.
 
-Build output: unchanged. Work units and bytes: unchanged except tile-frenzy, which ticks at 20 instead of 30 a
-second (its baseline and recording were regenerated: 28 batches per player-second instead of 43). The parity
-recordings' output hashes changed with the wire format; their state hashes are unchanged.
+This is not backward compatible and was not meant to be: SDK `0.1` has not shipped to creators yet, so it changes in
+place.
+
+Build output: the bundler and the `sdk/` runtime files are unchanged, but every example's source changed, so their
+hashes changed. Work units: changed for every mode; the bench baseline and the parity recordings were regenerated.
 
 ## 0.7.0
 

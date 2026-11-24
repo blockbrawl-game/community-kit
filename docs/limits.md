@@ -20,7 +20,7 @@ Defined in [`runtime/limits.json`](../runtime/limits.json).
 
 | Limit | Value | What happens when exceeded |
 | --- | --- | --- |
-| Tick rate | 30 per second | mode.json is rejected |
+| Ticks | every 50 ms while awake, the same for every mode | (not a limit: see `ctx.sleepUntil`) |
 | Time per call | 250 ms watchdog | match is aborted |
 | Time per call, p99 | 5 ms | warning in `brawl-modes test` |
 | State size | 256 KB | match is aborted |

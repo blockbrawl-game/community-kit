@@ -84,14 +84,14 @@ test('modes/AGENTS.md is the same guide new writes into a workspace', () => {
 
 test('the mode.json schema and validateManifest agree', () => {
   const schema = JSON.parse(readFileSync(path.join(root, 'schema', 'mode.schema.json'), 'utf8'));
-  const limits = JSON.parse(readFileSync(path.join(root, 'runtime', 'limits.json'), 'utf8'));
-  assert.equal(schema.properties.tickRate.maximum, limits.maxTickRate);
 
   // Every key the schema allows is accepted, and nothing else is.
   const allKeys = Object.fromEntries(Object.keys(schema.properties).map((key) => [key, undefined]));
-  const problems = validateManifest({ ...allKeys, id: 'abc', name: 'A', version: '1.0.0', players: { min: 1, max: 1 }, tickRate: 0, server: 's', client: 'c', clientModel: 'm' });
+  const problems = validateManifest({ ...allKeys, id: 'abc', name: 'A', version: '1.0.0', players: { min: 1, max: 1 }, server: 's', client: 'c', clientModel: 'm' });
   assert.deepEqual(problems.filter((p) => p.startsWith('unknown key')), []);
   assert.match(validateManifest({ tickrate: 1 }).join('\n'), /unknown key "tickrate"/);
+  // Every mode runs on the same 50 ms grid: there is no tick rate to declare.
+  assert.match(validateManifest({ tickRate: 20 }).join('\n'), /unknown key "tickRate"/);
 
   // The patterns match the ones the kit enforces.
   for (const [value, ok] of [['abc', true], ['ab', false], ['1abc', false], ['a-b-c', true], ['Abc', false]]) {

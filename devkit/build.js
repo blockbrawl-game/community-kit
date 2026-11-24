@@ -17,7 +17,7 @@ export const ID_PATTERN = /^[a-z][a-z0-9-]{2,31}$/;
 const TAG_PATTERN = /^[a-z0-9][a-z0-9-]{1,19}$/;
 // Every key mode.json may have; schema/mode.schema.json lists the same ones. Anything else is most likely a typo.
 const MANIFEST_KEYS = ['$schema', 'id', 'name', 'version', 'sdk', 'author', 'runtime', 'tagline', 'description', 'tags',
-  'players', 'tickRate', 'orientation', 'server', 'client', 'clientModel', 'fuzz'];
+  'players', 'orientation', 'server', 'client', 'clientModel', 'fuzz'];
 const ORIENTATIONS = ['portrait', 'landscape', 'any'];
 /** Store thumbnail files, looked for in this order (the server's ModeRegistry uses the same list and limit). */
 export const THUMBNAIL_FILES = ['thumb.webp', 'thumb.png', 'thumb.jpg'];
@@ -80,11 +80,6 @@ export function validateManifest(manifest, dir) {
   const runtime = manifest.runtime ?? 'online';
   if (runtime !== 'online' && runtime !== 'offline') problems.push('runtime must be "online" or "offline".');
   const offline = runtime === 'offline';
-  // An offline mode has no server tick, so it may leave tickRate out.
-  if (!(offline && manifest.tickRate === undefined)
-    && (!Number.isInteger(manifest.tickRate) || manifest.tickRate < 0 || manifest.tickRate > limits.maxTickRate)) {
-    problems.push(`tickRate must be an integer from 0 to ${limits.maxTickRate}.`);
-  }
   if (manifest.tags !== undefined) {
     if (!Array.isArray(manifest.tags) || manifest.tags.length > 8 || manifest.tags.some((tag) => !TAG_PATTERN.test(tag ?? ''))) {
       problems.push('tags must be at most 8 strings of 2-20 chars: lowercase letters, digits, dashes.');

@@ -1,39 +1,38 @@
 // The 50 ms grid (devkit/clock.js). The cases match the server's MatchClockTests, so both hosts tick alike.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { slotsPerTick, due, nextTickMs, lastTickMs } from '../devkit/clock.js';
+import { ASLEEP, due, nextTickMs } from '../devkit/clock.js';
 import { MatchHost } from '../devkit/match.js';
 
-test('SDK 0.1 rates map to whole grid slots', () => {
-  const cases = [[0, 0], [1, 20], [2, 10], [3, 7], [8, 3], [10, 2], [14, 1], [20, 1], [30, 1]];
-  for (const [rate, slots] of cases) assert.equal(slotsPerTick(rate), slots, `tickRate ${rate}`);
+test('an awake mode is due on every slot, never early, and a late tick runs once on the latest slot', () => {
+  assert.equal(due(100, 149, 0), null);
+  assert.deepEqual(due(100, 150, 0), { atMs: 150, droppedMs: 0 });
+  assert.deepEqual(due(100, 199, 0), { atMs: 150, droppedMs: 0 });
+  assert.deepEqual(due(100, 260, 0), { atMs: 250, droppedMs: 0 });
+  // An action moved the clock between slots: the next slot is still the next one on the grid.
+  assert.deepEqual(due(130, 150, 0), { atMs: 150, droppedMs: 0 });
 });
 
-test('a tick is due once per period, never early, with every whole period when late', () => {
-  assert.equal(due(100, 149, 1), null);
-  assert.deepEqual(due(100, 150, 1), { dtMs: 50, atMs: 150, droppedMs: 0 });
-  assert.deepEqual(due(100, 199, 1), { dtMs: 50, atMs: 150, droppedMs: 0 });
-  assert.deepEqual(due(100, 260, 1), { dtMs: 150, atMs: 250, droppedMs: 0 });
-  assert.deepEqual(due(230, 300, 2), { dtMs: 100, atMs: 300, droppedMs: 0 });
+test('a sleeping mode is due on the first slot at or after its wake time, or not at all', () => {
+  assert.equal(nextTickMs(100, 1000), 1000);
+  assert.equal(nextTickMs(100, 1010), 1050);
+  assert.equal(nextTickMs(100, 20), 150);
+  assert.equal(nextTickMs(100, ASLEEP), null);
+  assert.equal(due(100, 999, 1000), null);
+  assert.equal(due(100, 99999, ASLEEP), null);
 });
 
-test('the lag is capped at four slots and the rest dropped', () => {
-  assert.deepEqual(due(0, 550, 1), { dtMs: 200, atMs: 200, droppedMs: 350 });
-  assert.deepEqual(due(0, 400, 2), { dtMs: 200, atMs: 200, droppedMs: 200 });
-  assert.deepEqual(due(0, 1500, 10), { dtMs: 500, atMs: 500, droppedMs: 1000 });
+test('lag beyond four slots is dropped', () => {
+  // Due at 50, fired at 550: the tick runs at 250 (four slots of lag), and 300 ms are given up.
+  assert.deepEqual(due(0, 550, 0), { atMs: 250, droppedMs: 300 });
+  assert.deepEqual(due(0, 1240, 1000), { atMs: 1200, droppedMs: 0 });
+  assert.deepEqual(due(0, 1500, 1000), { atMs: 1200, droppedMs: 300 });
 });
 
-test('the next tick follows from the match time alone', () => {
-  assert.equal(lastTickMs(130, 1), 100);
-  assert.equal(nextTickMs(130, 1), 150);
-  assert.equal(nextTickMs(500, 10), 1000);
-  assert.equal(nextTickMs(500, 0), null);
-});
-
-test('MatchHost runs a due tick before the action, and the action keeps its exact time', () => {
+test('MatchHost runs a due tick before the action, the action keeps its time, and sleep skips ticks', () => {
   const bundle = `var __bbMode = { default: {
     setup() { return {}; },
-    onAction(state, action, ctx) { ctx.emit({ t: 'act', at: ctx.timeMs }); },
+    onAction(state, action, ctx) { ctx.emit({ t: 'act', at: ctx.timeMs }); if (action.nap) ctx.sleepUntil(action.nap); },
     onTick(state, dtMs, ctx) { ctx.emit({ t: 'tick', dt: dtMs, at: ctx.timeMs }); },
     sync() { return []; },
     result() { return null; },
@@ -41,23 +40,40 @@ test('MatchHost runs a due tick before the action, and the action keeps its exac
   const seen = [];
   const players = [{ id: 'p-a', name: 'A', isBot: false }];
   const host = new MatchHost({
-    manifest: { id: 'clock-test', version: '1.0.0', tickRate: 10 }, bundle, players, seed: 1,
+    manifest: { id: 'clock-test', version: '1.0.0' }, bundle, players, seed: 1,
     onSend: (id, message) => { if (message.kind === 'steps') seen.push(...message.steps); },
   });
   host.start();
 
-  assert.equal(host.advanceTo(130), 0);
-  host.action('p-a', 'a1', {}, 130);
-  assert.equal(host.msToNextTick(130), 70);
-  host.advanceTo(170);
-  host.action('p-a', 'a2', {}, 170);
-  assert.equal(host.advanceTo(260), 0);
-  assert.deepEqual(seen, [
-    { t: 'tick', dt: 100, at: 100 }, { t: 'act', at: 130 }, { t: 'act', at: 170 }, { t: 'tick', dt: 100, at: 200 },
-  ]);
-  assert.equal(host.msToNextTick(260), 40);
+  assert.equal(host.advanceTo(60), 0);
+  host.action('p-a', 'a1', { nap: 400 }, 60);
+  assert.equal(host.msToNextTick(70), 330);
+  assert.equal(host.advanceTo(399), 0); // asleep until 400: nothing
+  host.advanceTo(420);
+  assert.deepEqual(seen, [{ t: 'tick', dt: 50, at: 50 }, { t: 'act', at: 60 }, { t: 'tick', dt: 350, at: 400 }]);
+  assert.equal(host.msToNextTick(420), 30);
 
-  // The journal replays the tick at its place on the grid, not at timeMs + dtMs.
-  assert.deepEqual(host.inputs.filter((i) => i.op === 'tick').map((i) => i.timeMs), [100, 200]);
-  assert.equal(host.advanceTo(2000), 1600); // 18 periods since the tick at 200: one 200 ms tick, 1600 ms dropped
+  // The journal replays the tick at its place on the grid.
+  assert.deepEqual(host.inputs.filter((i) => i.op === 'tick').map((i) => i.timeMs), [50, 400]);
+  assert.equal(host.advanceTo(2000), 1350); // the tick at 450 was due: one tick at 650, the rest dropped
+});
+
+test('the sleeping examples still wake for their turn deadlines when nobody acts', async () => {
+  const { loadMode, bundleServer } = await import('../devkit/build.js');
+  const { devPlayers } = await import('../devkit/match.js');
+  for (const [id, timeoutMs] of [['duel-lite', 30000], ['bloom-blocks', 20000]]) {
+    const mode = await loadMode(id);
+    const steps = [];
+    const host = new MatchHost({
+      manifest: mode.manifest, bundle: await bundleServer(mode), players: devPlayers(2), seed: 3,
+      onSend: (playerId, message) => { if (message.kind === 'steps' && playerId === host.players[0].id) steps.push(...message.steps); },
+    });
+    host.start();
+    // Two minutes of nobody playing, slot by slot, as the server's timer would fire.
+    for (let t = 50; t <= 120000; t += 50) host.advanceTo(t);
+    const ticks = host.inputs.filter((i) => i.op === 'tick').map((i) => i.timeMs);
+    assert.ok(steps.some((s) => s.t === 'timeout'), `${id}: a turn timed out`);
+    assert.equal(ticks[0], timeoutMs, `${id}: first tick at the first deadline`);
+    assert.ok(ticks.length <= 120000 / timeoutMs + 1, `${id}: ticked only at deadlines (${ticks.length} ticks)`);
+  }
 });

@@ -1,4 +1,4 @@
-// Sandbox prelude for community game modes (wire format v2).
+// Sandbox prelude for community game modes (wire format v3).
 //
 // This is a plain script, not a module. It is evaluated first in a fresh V8 context (Node `vm` in the
 // dev kit, ClearScript in the silo), then the bundled mode script is evaluated, which defines
@@ -8,6 +8,12 @@
 // Calls take plain arguments (numbers and strings) and return a string in the framed format described in
 // devkit/wire.js: the empty string when nothing happened, otherwise `<tag><length>:<payload>` records. The host
 // slices them without parsing any JSON, and an empty call costs almost nothing.
+//
+// Ticks: a mode that has `onTick` is ticked on every 50 ms slot of the host's grid while it is awake. It can
+// sleep with `ctx.sleepUntil(t)` (no tick before match time t) or `ctx.sleep()` (no tick until the next action or
+// status change). An action or status call wakes it again unless that same call sleeps. The prelude reports the
+// earliest time the mode wants its next tick in a `W` record whenever it changes, and computes `dtMs` itself as the
+// time since the previous `onTick`. A mode without `onTick` is asleep for good.
 //
 // Everything a mode can observe is deterministic: Math.random and Date are replaced by a seeded
 // generator and the match clock, and there are no timers or I/O in the context.
@@ -22,6 +28,8 @@
   var freeze = Object.freeze;
   var isArray = Array.isArray;
   var floor = Math.floor;
+  var ceil = Math.ceil;
+  var isFinite = Number.isFinite;
   var imul = Math.imul;
   var defineProperty = Object.defineProperty;
   var strSlice = Function.prototype.call.bind(String.prototype.slice);
@@ -34,6 +42,14 @@
   var players = [];
   var timeMs = 0;
   var rngState = 1;
+
+  // Wake state. wake: the earliest match time of the next tick (0: the next slot), or ASLEEP: none until an action
+  // or a status change. reportedWake: what the host was last told. lastTickMs: when onTick last ran.
+  var ASLEEP = -1;
+  var hasTick = false;
+  var wake = ASLEEP;
+  var reportedWake = 0;
+  var lastTickMs = 0;
 
   // Per-call output buffers, filled by index so no Array.prototype method is ever called on them.
   var steps = [];
@@ -171,6 +187,16 @@
     steps[stepCount++] = { to: to, step: step };
   }
 
+  // Ignored for a mode without onTick: it is never ticked anyway.
+  function sleepUntil(t) {
+    if (typeof t !== 'number' || !isFinite(t)) throw new Error('ctx.sleepUntil(t) needs a finite match time in milliseconds.');
+    if (hasTick) wake = t > 0 ? ceil(t) : 0;
+  }
+
+  function sleep() {
+    if (hasTick) wake = ASLEEP;
+  }
+
   function makeContext(playerId) {
     return {
       players: players,
@@ -178,6 +204,8 @@
       rng: rng,
       timeMs: timeMs,
       emit: emit,
+      sleepUntil: sleepUntil,
+      sleep: sleep,
       log: function () { pushLog(arguments); },
     };
   }
@@ -198,9 +226,15 @@
     return out;
   }
 
+  function wakeRecord() {
+    if (wake === reportedWake) return '';
+    reportedWake = wake;
+    return record('W', toStr(wake));
+  }
+
   function finish() {
     var result = mode.result(state);
-    if (stepCount === 0 && logCount === 0 && !result) return '';
+    if (stepCount === 0 && logCount === 0 && !result && wake === reportedWake) return '';
 
     var out = '';
     for (var i = 0; i < stepCount; i++) {
@@ -216,12 +250,14 @@
       // The host only ever sees the JSON, so "over" means truthy after a JSON round trip, as it always did.
       if (resultJson !== undefined && parse(resultJson)) out += record('R', resultJson);
     }
-    return out;
+    return out + wakeRecord();
   }
 
-  // A rejection is the mode saying "this action is illegal". Anything else thrown is a bug in the mode.
+  // A rejection is the mode saying "this action is illegal": it changes nothing, its wake time included.
+  // Anything else thrown is a bug in the mode.
   function failure(error) {
     if (error && error.__bbReject === true) {
+      wake = reportedWake;
       return logRecords() + record('X', toStr(error.reason || 'rejected'));
     }
     var out = logRecords() + record('E', toStr((error && error.message) || error));
@@ -266,6 +302,10 @@
         players = freezePlayers(input.players);
         rngState = input.seed | 0;
         timeMs = 0;
+        lastTickMs = 0;
+        hasTick = typeof mode.onTick === 'function';
+        wake = hasTick ? 0 : ASLEEP;
+        reportedWake = 0; // the host starts out ticking: setup reports anything else
         if (input.limits && input.limits.maxStepsPerCall) limits.maxStepsPerCall = input.limits.maxStepsPerCall;
         begin(0);
         state = mode.setup(makeContext(null));
@@ -292,6 +332,7 @@
         }
         var playerId = playerAt(playerIndex);
         begin(newTimeMs);
+        if (hasTick) wake = 0;
         mode.onAction(state, action, makeContext(playerId));
         return finish();
       } catch (e) {
@@ -299,10 +340,16 @@
       }
     },
 
-    tick: function (dtMs, newTimeMs) {
+    // newTimeMs: the grid slot of this tick. dtMs is the time since the previous onTick, whatever slept between.
+    tick: function (newTimeMs) {
       try {
         begin(newTimeMs);
-        if (typeof mode.onTick === 'function') mode.onTick(state, dtMs, makeContext(null));
+        var dtMs = timeMs - lastTickMs;
+        lastTickMs = timeMs;
+        if (hasTick) {
+          wake = 0;
+          mode.onTick(state, dtMs, makeContext(null));
+        }
         return finish();
       } catch (e) {
         return failure(e);
@@ -314,6 +361,7 @@
       try {
         var playerId = playerAt(playerIndex);
         begin(newTimeMs);
+        if (hasTick) wake = 0;
         if (typeof mode.onPlayerStatus === 'function') {
           mode.onPlayerStatus(state, playerId, status, makeContext(playerId));
         }
@@ -342,10 +390,10 @@
 
     // Everything needed to continue this match in a fresh sandbox.
     exportState: function () {
-      return stringify({ state: state, rng: rngState, timeMs: timeMs, players: players });
+      return stringify({ state: state, rng: rngState, timeMs: timeMs, lastTickMs: lastTickMs, wake: wake, players: players });
     },
 
-    // Returns the empty string on success, a failure frame otherwise.
+    // Returns the wake record on success (the host learns when to tick next), a failure frame otherwise.
     importState: function (snapshotJson) {
       try {
         requireMode();
@@ -353,8 +401,12 @@
         state = snapshot.state;
         rngState = snapshot.rng | 0;
         timeMs = snapshot.timeMs;
+        lastTickMs = snapshot.lastTickMs;
+        hasTick = typeof mode.onTick === 'function';
+        wake = snapshot.wake;
         players = freezePlayers(snapshot.players);
-        return '';
+        reportedWake = wake;
+        return record('W', toStr(wake));
       } catch (e) {
         return failure(e);
       }

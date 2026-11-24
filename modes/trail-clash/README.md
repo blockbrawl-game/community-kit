@@ -16,7 +16,7 @@ Steer a light trail through the arena and make everyone else crash first; the wa
 | | |
 |---|---|
 | Players | 1-4 |
-| Tick rate | 20 |
+| Ticks | every 50 ms slot (a cell every 150 ms, 100 ms after 25 s) |
 
 ```bash
 npx brawl-modes dev trail-clash --players 2

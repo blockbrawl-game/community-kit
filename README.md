@@ -73,8 +73,8 @@ node devkit/cli.js dev duel-lite  # npx brawl-modes ... is node devkit/cli.js ..
 | `modes/duel-lite/` | Turn-based reference mode: steps, private hands, sync |
 | `modes/stack-race/` | Real-time reference mode: ticking and client prediction |
 | `modes/tap-rush/` | Offline reference mode: no server, the whole game is the client |
-| `modes/tile-frenzy/` | Showcase, load test: 1-8 players at 20 ticks a second grabbing tiles on a shared board |
-| `modes/trail-clash/` | Showcase, real time: 1-4 light trails at 20 ticks a second, queued turns, a shrinking arena |
+| `modes/tile-frenzy/` | Showcase, load test: 1-8 players grabbing tiles on a shared board, ticked every 50 ms |
+| `modes/trail-clash/` | Showcase, real time: 1-4 light trails moving in time, queued turns, a shrinking arena |
 | `modes/bloom-blocks/` | Showcase, visuals: turn-based placement puzzle for 1-2 players with drag and drop and particle effects |
 | `scripts/check-modes.mjs` | The CI gate: `check` on every mode, and bench numbers equal to `scripts/bench-baseline.json` |
 | `docs/` | Guides |
@@ -83,7 +83,7 @@ node devkit/cli.js dev duel-lite  # npx brawl-modes ... is node devkit/cli.js ..
 
 ```
 modes/<mode-id>/
-  mode.json          id, version, player counts, tickRate, file names
+  mode.json          id, version, player counts, file names
   server.js          export default defineMode({ ... })
   shared.js          optional rules used by both halves
   client/index.html  the client page

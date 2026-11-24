@@ -34,8 +34,8 @@ machine-readable result object on stdout (the human report goes to stderr).
 
 | Template | Use it for | Server |
 |---|---|---|
-| `turn` (default) | Turn-based and board games: players act in order, nothing moves on its own | `tickRate: 0`, all logic in `onAction` |
-| `realtime` | Things that move: positions, timers, physics | `tickRate` 1-30 (run on a 50 ms grid: at most 20 a second), actions set intent, `onTick` moves the world by `dtMs` |
+| `turn` (default) | Turn-based and board games: players act in order, nothing moves on its own | no `onTick`, all logic in `onAction` |
+| `realtime` | Things that move: positions, timers, physics | `onTick` every 50 ms moves the world by `dtMs`, actions set intent, `ctx.sleepUntil` while nothing moves |
 | `offline` | Single-player toys that need no server and no verified score | none: the client is the whole game |
 
 Online modes (turn and realtime) are multiplayer and their results are verified. Offline modes earn nothing.
@@ -49,7 +49,7 @@ client/index.html --game.send(action)--> server.js onAction(state, action, ctx) 
 
 | File | Role | Runs |
 |---|---|---|
-| `mode.json` | Identity, players, `tickRate`, files, store listing (schema: the kit's `schema/mode.schema.json`) | |
+| `mode.json` | Identity, players, files, store listing (schema: the kit's `schema/mode.schema.json`) | |
 | `shared.js` | Constants and pure rule helpers used by both sides | server and client |
 | `server.js` | `defineMode({ setup, onAction, onTick?, onPlayerStatus?, sync, result })`: the only authority on the rules | server sandbox |
 | `client/model.js` | `createModel()`: the client's picture of the match, rebuilt from steps only, no DOM | browser and `test` |
@@ -120,7 +120,7 @@ Offline modes may use `Math.random`; everything else applies to them too.
 
 ## Limits (from the kit's `runtime/limits.json`)
 
-Tick rate at most 30 per second; state at most 256 KB; at most 256 steps per call and 16 KB per step batch;
+One clock for every mode: `onTick` every 50 ms while awake (`ctx.sleepUntil(t)` / `ctx.sleep()` skip ticks; an action wakes the mode); state at most 256 KB; at most 256 steps per call and 16 KB per step batch;
 actions at most 4 KB; server bundle 256 KB; built client 5 MB; 30 actions per second per player. `bench` gates:
 1,000,000 work units for the most expensive call and 500,000 per match-second. Work units count function calls,
 loop passes and bytes of steps, and are identical on every machine.
@@ -130,5 +130,5 @@ loop passes and bytes of steps, and are identical on every machine.
 The kit's `docs/` folder (in a workspace: `node_modules/@blockbrawl-game/community-kit/docs/`):
 `getting-started.md`, `interfaces.md`, `steps-and-sync.md`, `prediction.md` (instant feedback for fast modes),
 `benchmark.md`, `limits.md`, `offline-modes.md`, `listing.md`, `publishing.md`. Working examples are in the kit's `modes/` folder:
-`duel-lite` (smallest turn-based), `stack-race`, `tile-frenzy` (8 players, 30 ticks), `trail-clash`,
+`duel-lite` (smallest turn-based), `stack-race`, `tile-frenzy` (8 players, never sleeps), `trail-clash`,
 `bloom-blocks` and `tap-rush` (offline).

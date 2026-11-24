@@ -1,4 +1,4 @@
-// The prelude's output format (runtime/prelude.js, v2), decoded. The server's CommunityMatch reads the same format.
+// The prelude's output format (runtime/prelude.js, v3), decoded. The server's CommunityMatch reads the same format.
 //
 // A call returns either the empty string (nothing happened: no steps, no logs, no result) or a run of records,
 // each `<tag><length>:<payload>`, where the length counts UTF-16 code units of the payload:
@@ -9,17 +9,19 @@
 //   X  the action was rejected: the reason
 //   E  the mode threw: the message        K  the stack
 //   L  one console line
+//   W  when the mode wants its next tick, when that changed: a match time (0: the next slot), or -1 for none until
+//      the next action or status change
 //
 // Lengths are written by the prelude, never by the mode, so nothing a mode returns can break the framing.
 
-const TAGS = new Set(['B', 'P', 'R', 'X', 'E', 'K', 'L']);
+const TAGS = new Set(['B', 'P', 'R', 'X', 'E', 'K', 'L', 'W']);
 
 /**
  * Decodes one call's output. Returns { steps: [{ to: -1 | playerIndex, json }], resultJson, rejected, error, stack,
- * logs }. Throws on anything the prelude would never produce.
+ * logs, wake } (wake is null when it did not change). Throws on anything the prelude would never produce.
  */
 export function decodeFrames(raw) {
-  const out = { steps: [], resultJson: null, rejected: null, error: null, stack: null, logs: [] };
+  const out = { steps: [], resultJson: null, rejected: null, error: null, stack: null, logs: [], wake: null };
   let i = 0;
   while (i < raw.length) {
     const tag = raw[i];
@@ -46,6 +48,12 @@ export function decodeFrames(raw) {
       case 'E': out.error = payload; break;
       case 'K': out.stack = payload; break;
       case 'L': out.logs.push(payload); break;
+      case 'W': {
+        const wake = Number(payload);
+        if (!Number.isInteger(wake) || wake < -1) throw new Error('malformed wake record');
+        out.wake = wake;
+        break;
+      }
     }
   }
   return out;
