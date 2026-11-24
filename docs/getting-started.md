@@ -10,7 +10,7 @@ mkdir my-modes
 cd my-modes
 npm init -y
 npm pkg set type=module
-npm install --save-exact https://github.com/blockbrawl-game/community-kit/releases/download/v0.7.0/blockbrawl-game-community-kit-0.7.0.tgz
+npm install --save-exact https://github.com/blockbrawl-game/community-kit/releases/download/v0.8.0/blockbrawl-game-community-kit-0.8.0.tgz
 ```
 
 The kit is a GitHub release file, not an npm registry package: no account or token is needed, and npm pins its

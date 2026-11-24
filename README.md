@@ -20,7 +20,7 @@ Requires Node 20 or newer. In an empty folder:
 ```bash
 npm init -y
 npm pkg set type=module
-npm install --save-exact https://github.com/blockbrawl-game/community-kit/releases/download/v0.7.0/blockbrawl-game-community-kit-0.7.0.tgz
+npm install --save-exact https://github.com/blockbrawl-game/community-kit/releases/download/v0.8.0/blockbrawl-game-community-kit-0.8.0.tgz
 npx brawl-modes new my-mode --template turn
 npx brawl-modes check my-mode
 npx brawl-modes dev my-mode
@@ -49,7 +49,7 @@ Every command takes `--json` for one machine-readable result object on stdout. A
 Every release is a git tag (`vX.Y.Z`) with a GitHub release that has the packed kit attached. There is no npm
 registry package and no token is needed. npm pins the release file's integrity hash in your lockfile, and it needs
 neither git nor an SSH key, so it also works in container builds. (`npm install
-github:blockbrawl-game/community-kit#v0.7.0` works too, but records a `git+ssh` URL that needs git and GitHub SSH
+github:blockbrawl-game/community-kit#v0.8.0` works too, but records a `git+ssh` URL that needs git and GitHub SSH
 access on every machine that runs `npm ci`.) What changed in each release: [CHANGELOG.md](CHANGELOG.md).
 
 ### Working in this repository

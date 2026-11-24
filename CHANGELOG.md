@@ -25,9 +25,9 @@ re-approved with the new kit. Every entry below says whether build output change
 
 **Work units.** `bench` numbers are part of the contract too: an entry says when they change.
 
-## Unreleased
+## 0.8.0
 
-Towards the unified runner (one tick for every mode, cheaper calls, per-player costs).
+The unified runner: one clock for every mode, woken on demand, cheaper calls, merged batches and per-player costs.
 
 - **Prelude wire format v3** (`runtime/prelude.js`, `devkit/wire.js`). Calls take plain arguments
   (`tick(t)`, `action(playerIndex, actionText, t)`, `status(playerIndex, status, t)`, `sync(playerIndex)`) and
