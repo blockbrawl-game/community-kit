@@ -39,9 +39,17 @@ Towards the unified runner (one tick for every mode, cheaper calls, per-player c
   garbage collection timing.
 - `bench` reports `perPlayer`: units, batches and bytes per player-second; the baseline includes them.
 - The output hash now skips calls that return nothing, on both hosts.
+- **One 50 ms grid for every match** (`devkit/clock.js`, the server's `MatchClock`). `onTick` runs every
+  `round(20 / tickRate)` slots, so `dtMs` is a multiple of 50: rates of 2, 10 and 20 are unchanged, 30 runs at 20 a
+  second, and in-between rates round to whole slots. A late tick carries the time that passed (up to 200 ms) instead
+  of a burst of ticks. Actions keep their exact time between ticks, and a tick that is due runs first, in `dev` as
+  on the server (`MatchHost.advanceTo`). `tickRate` keeps its rules (0-30), so no mode stops loading.
+- A tick's journal entry now replays at its recorded `timeMs` (`MatchHost.tick(dtMs, atTimeMs)`): an action between
+  ticks moves the clock off the grid, so a tick is not always `timeMs + dtMs`. Old recordings replay as before.
 
-Build output: unchanged. Work units and bytes: unchanged (the bench measures a mode's bytes as before). The
-parity recordings' output hashes changed with the wire format; their state hashes are unchanged.
+Build output: unchanged. Work units and bytes: unchanged except tile-frenzy, which ticks at 20 instead of 30 a
+second (its baseline and recording were regenerated: 28 batches per player-second instead of 43). The parity
+recordings' output hashes changed with the wire format; their state hashes are unchanged.
 
 ## 0.7.0
 

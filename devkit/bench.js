@@ -51,7 +51,7 @@ function countedReplay({ manifest, bundle, players, seed, inputs }) {
   host.start();
   for (const input of inputs) {
     if (input.op === 'action') host.action(input.playerId, input.actionId, input.action, input.timeMs);
-    else if (input.op === 'tick') host.tick(input.dtMs);
+    else if (input.op === 'tick') host.tick(input.dtMs, input.timeMs);
     else if (input.op === 'status') host.setStatus(input.playerId, input.status);
   }
   // A join or reconnect costs one sync() per player; count one for each.

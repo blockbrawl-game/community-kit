@@ -19,7 +19,12 @@ The full typed definitions are in [`sdk/types.d.ts`](../sdk/types.d.ts). This pa
 ```
 
 - `id` must equal the folder name.
-- `tickRate` is how many times per second `onTick` runs. Use `0` for no ticking. The maximum is 30.
+- `tickRate` is how often `onTick` runs. Use `0` for no ticking. The maximum is 30.
+  Every match runs on one 50 ms grid (20 slots a second), so the rate is rounded to whole slots: `onTick` runs every
+  `round(20 / tickRate)` slots, and `dtMs` is always a multiple of 50. 2 runs every 500 ms, 10 every 100 ms, and
+  anything from 14 up every 50 ms (20 a second). Use `dtMs` and `ctx.timeMs` rather than counting ticks.
+  If the server falls behind, the next tick carries the time that passed (at most 200 ms), never a burst of ticks.
+  Actions arrive with their exact time between ticks, and a tick that is due always runs before the action.
 - Every key, with its rules, is in [`schema/mode.schema.json`](../schema/mode.schema.json); add
   `"$schema": "<path to that file>"` for completion in your editor (`brawl-modes new` does). Unknown keys fail
   `check`. The store listing keys are in [listing.md](listing.md), offline modes in [offline-modes.md](offline-modes.md).

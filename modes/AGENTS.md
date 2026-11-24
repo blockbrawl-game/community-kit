@@ -35,7 +35,7 @@ machine-readable result object on stdout (the human report goes to stderr).
 | Template | Use it for | Server |
 |---|---|---|
 | `turn` (default) | Turn-based and board games: players act in order, nothing moves on its own | `tickRate: 0`, all logic in `onAction` |
-| `realtime` | Things that move: positions, timers, physics | `tickRate` 1-30, actions set intent, `onTick` moves the world |
+| `realtime` | Things that move: positions, timers, physics | `tickRate` 1-30 (run on a 50 ms grid: at most 20 a second), actions set intent, `onTick` moves the world by `dtMs` |
 | `offline` | Single-player toys that need no server and no verified score | none: the client is the whole game |
 
 Online modes (turn and realtime) are multiplayer and their results are verified. Offline modes earn nothing.

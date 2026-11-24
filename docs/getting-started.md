@@ -84,7 +84,7 @@ The kit's example modes are working, reviewed code. Each has a README saying wha
 |---|---|
 | `duel-lite` | The smallest turn-based mode: hidden hands, validation, sync |
 | `stack-race` | Ticking and client prediction |
-| `tile-frenzy` | 8 players at 30 ticks a second, contested actions |
+| `tile-frenzy` | 8 players at 20 ticks a second, contested actions |
 | `trail-clash` | Queued input, prediction and interpolation |
 | `bloom-blocks` | A rich client: drag and drop, particles, animation |
 | `tap-rush` | An offline mode |

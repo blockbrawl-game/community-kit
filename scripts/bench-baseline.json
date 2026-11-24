@@ -30,12 +30,12 @@
     "offline": true
   },
   "tile-frenzy": {
-    "maxCallUnits": 9369,
-    "unitsPerSecond": 245630,
+    "maxCallUnits": 9299,
+    "unitsPerSecond": 241746,
     "perPlayer": {
-      "unitsPerSecond": 30704,
-      "batchesPerSecond": 42.72,
-      "bytesPerSecond": 4239
+      "unitsPerSecond": 30218,
+      "batchesPerSecond": 28.14,
+      "bytesPerSecond": 2778
     }
   },
   "trail-clash": {

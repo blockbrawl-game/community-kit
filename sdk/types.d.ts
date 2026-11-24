@@ -51,7 +51,7 @@ export interface ModeServer<S = any, A = any> {
   setup(ctx: Context): S;
   /** Validate first, then mutate `state` and emit steps. Throw `reject(reason)` if illegal. */
   onAction(state: S, action: A, ctx: Context): void;
-  /** Called `tickRate` times per second when mode.json sets tickRate > 0. */
+  /** Called on the 50 ms grid, every round(20 / tickRate) slots, when mode.json sets tickRate > 0. dtMs is a multiple of 50. */
   onTick?(state: S, dtMs: number, ctx: Context): void;
   onPlayerStatus?(state: S, playerId: string, status: PlayerStatus, ctx: Context): void;
   /**

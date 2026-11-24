@@ -11,6 +11,7 @@
 import { createHash } from 'node:crypto';
 import { Sandbox, ModeError } from './sandbox.js';
 import { limits as defaultLimits } from './build.js';
+import { slotsPerTick, due, nextTickMs } from './clock.js';
 
 export class MatchHost {
   /**
@@ -32,6 +33,7 @@ export class MatchHost {
     this.limits = { ...defaultLimits, ...limits };
 
     this.countWork = countWork === true;
+    this.slotsPerTick = slotsPerTick(manifest.tickRate);
     this.sandbox = this.#newSandbox();
     this.timeMs = 0;
     this.seq = new Map(players.map((p) => [p.id, 0]));
@@ -63,7 +65,7 @@ export class MatchHost {
     return this.players.findIndex((p) => p.id === playerId);
   }
 
-  /** @param {number} [atTimeMs] match clock for tickless modes; ignored if earlier than the current clock */
+  /** @param {number} [atTimeMs] host match time of the action; ignored if earlier than the current clock */
   action(playerId, actionId, action, atTimeMs) {
     if (this.ended) return;
     if (!this.seq.has(playerId)) return;
@@ -78,11 +80,36 @@ export class MatchHost {
     this.#run('action', [this.#indexOf(playerId), actionText, this.timeMs], { actorId: playerId, actionId });
   }
 
-  tick(dtMs) {
+  /**
+   * @param {number} dtMs time since the previous tick, as the mode sees it
+   * @param {number} [atTimeMs] the tick's place on the grid; an action between ticks moves the clock off it, so this
+   *   is not always timeMs + dtMs (journals from before the grid leave it out)
+   */
+  tick(dtMs, atTimeMs) {
     if (this.ended) return;
-    this.timeMs += dtMs;
+    this.timeMs = Math.max(this.timeMs, atTimeMs ?? this.timeMs + dtMs);
     this.inputs.push({ op: 'tick', dtMs, timeMs: this.timeMs });
     this.#run('tick', [dtMs, this.timeMs], {});
+  }
+
+  /**
+   * Runs the tick that is due at host match time hostMs (devkit/clock.js), as the server's timer does: once, with
+   * every period that passed up to the lag cap. Call it before an action at hostMs, so the action never comes before
+   * a tick that was due. Returns the milliseconds of lag beyond the cap that were dropped: the caller's clock should
+   * fall behind by that much, as the server's does.
+   */
+  advanceTo(hostMs) {
+    if (this.ended) return 0;
+    const tick = due(this.timeMs, hostMs, this.slotsPerTick);
+    if (!tick) return 0;
+    this.tick(tick.dtMs, tick.atMs);
+    return tick.droppedMs;
+  }
+
+  /** Milliseconds from host match time hostMs until the next tick is due; Infinity for a mode without a tick. */
+  msToNextTick(hostMs) {
+    const next = this.ended ? null : nextTickMs(this.timeMs, this.slotsPerTick);
+    return next === null ? Infinity : Math.max(0, next - hostMs);
   }
 
   /** @param {'disconnected' | 'reconnected' | 'forfeited'} status */
