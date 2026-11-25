@@ -19,7 +19,7 @@ line, fix the cause and run it again. Never report a mode as done, and never loo
 | Command | What it does |
 |---|---|
 | `npx brawl-modes new <id> [--template turn\|realtime\|offline] [--name "Name"]` | Creates `modes/<id>` from a template that already passes `check` |
-| `npx brawl-modes dev <id> [--players N]` | Plays the mode in the browser, every player side by side (http://localhost:5173) |
+| `npx brawl-modes dev <id> [--players N] [--bots N] [--host 0.0.0.0]` | Plays the mode in the browser, every player side by side (http://localhost:5173); `--bots` lets the fuzz generator play the last N seats, `--host 0.0.0.0` opens it to a phone on your network |
 | `npx brawl-modes test <id> [--seed N --runs 1]` | Fuzz, sync, determinism, hydration and size checks |
 | `npx brawl-modes bench <id>` | Server cost in work units against the server's gates |
 | `npx brawl-modes check <id> [--json]` | Everything review runs: policy, test, bench, build hashes |
@@ -88,8 +88,9 @@ client/index.html --game.send(action)--> server.js onAction(state, action, ctx) 
 
 | Rule | Why | Do this instead |
 |---|---|---|
-| No `Math.random` in any source (server or client) of an online mode | Replays and restores must give identical results | `ctx.rng.next()`, `int(n)`, `pick(a)`, `shuffle(a)` on the server; a small seeded generator in the client for visual effects |
-| No `eval`, `new Function`, dynamic `import()`, network (`fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `sendBeacon`), workers, typed arrays (`ArrayBuffer`, `Uint8Array`, `DataView` ...), `WeakRef`, `FinalizationRegistry` | Not available in the sandbox | Plain arrays and objects; everything the client needs is imported from the mode folder |
+| No `Math.random`, typed arrays (`ArrayBuffer`, `Uint8Array`, `DataView` ...), `WeakRef` or `FinalizationRegistry` in server-side files: those the server file or the client model imports (`server.js`, `shared.js`, `client/model.js` ...) | Not in the server sandbox; replays and restores must give identical results | `ctx.rng.next()`, `int(n)`, `pick(a)`, `shuffle(a)` on the server; plain arrays. Rendering files may use them |
+| No `eval`, `new Function`, dynamic `import()`, network (`fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `sendBeacon`) or workers, in any file | Not available in either sandbox | Everything the client needs is imported from the mode folder |
+| No other copy of PixiJS or another big library | Unreviewable, and they fail the policy | `import { Application } from '@blockbrawl/mode-sdk/pixi'`: the kit's build, made for the mode frame (`docs/rendering.md`) |
 | No match data outside `state` (module-level `let`, caches, closures) | The match moves between sandboxes; that data is lost and `test` reports `hydration` | Keep it in `state`; module-level `const` lookup tables are fine |
 | Validate before mutating in `onAction` | A rejected action must leave state exactly as it was (`fuzz: a rejected action changed state`) | All `throw reject('reason')` checks first, then change state |
 | Every visible change has a step | Otherwise `sync` and live clients differ (`sync: ... differs`) | Emit a step wherever state that a client shows changes |
@@ -101,7 +102,7 @@ client/index.html --game.send(action)--> server.js onAction(state, action, ctx) 
 
 The policy check is a plain text search over `.js`, `.html`, `.css` and `.json` files outside `tests/`, so it also
 matches those words in comments and strings (lowercase `fetch` in a description, for example). Rephrase them.
-Offline modes may use `Math.random`; everything else applies to them too.
+An offline mode has no server side, so its whole client follows the client rules.
 
 ## Reading failures
 
@@ -129,6 +130,6 @@ loop passes and bytes of steps, and are identical on every machine.
 
 The kit's `docs/` folder (in a workspace: `node_modules/@blockbrawl-game/community-kit/docs/`):
 `getting-started.md`, `interfaces.md`, `steps-and-sync.md`, `prediction.md` (instant feedback for fast modes),
-`benchmark.md`, `limits.md`, `offline-modes.md`, `listing.md`, `publishing.md`. Working examples are in the kit's `modes/` folder:
+`benchmark.md`, `limits.md`, `rendering.md` (PixiJS, render on demand, phone performance), `offline-modes.md`, `listing.md`, `publishing.md`. Working examples are in the kit's `modes/` folder:
 `duel-lite` (smallest turn-based), `stack-race`, `tile-frenzy` (8 players, never sleeps), `trail-clash`,
 `bloom-blocks` and `tap-rush` (offline).

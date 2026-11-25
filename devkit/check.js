@@ -1,6 +1,6 @@
 // `brawl-modes check`: everything review checks, in one command, with one verdict.
 //
-//   policy   no eval, network, workers, typed arrays or Math.random in the mode's sources
+//   policy   no eval, network or workers anywhere; no typed arrays or Math.random in server-side code
 //   test     fuzz, sync, determinism, hydration and size budgets (`brawl-modes test`)
 //   bench    work units within the server's gates (`brawl-modes bench`)
 //   build    the bundle and client build, and the hashes a reviewer approves (`brawl-modes build`)
@@ -16,7 +16,7 @@ export async function runCheck({ modeName, report = {} }) {
   const steps = {};
   console.log(`Checking ${manifest.id} ${manifest.version}\n`);
 
-  const policy = checkPolicy(mode);
+  const policy = await checkPolicy(mode);
   steps.policy = { passed: policy.length === 0, failures: policy };
   console.log(policy.length === 0 ? 'policy  ok' : `policy  FAIL\n${policy.map((p) => `  - ${p}`).join('\n')}`);
 

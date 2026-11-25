@@ -15,7 +15,7 @@ In this repository `npx brawl-modes <command>` is `node devkit/cli.js <command>`
 
 | Path | What it is | Who uses it |
 |---|---|---|
-| `sdk/` | `server.js` (`defineMode`, `reject`), `client.js` (`connect`), `offline.js` (`connectOffline`), `types.d.ts` | Mode code, bundled into every mode |
+| `sdk/` | `server.js` (`defineMode`, `reject`), `client.js` (`connect`), `offline.js` (`connectOffline`), `types.d.ts`, `pixi.js` (PixiJS, built by `scripts/vendor-pixi.mjs`; never edit by hand) | Mode code, bundled into every mode that imports it |
 | `runtime/` | `prelude.js` (the sandbox side of the server runtime) and `limits.json` (every limit) | Embedded by the game server; changing them changes the server |
 | `shell/` | The play page that hosts a mode frame | Embedded by the game gateway |
 | `devkit/` | The `brawl-modes` CLI: `new`, `dev`, `test`, `bench`, `check`, `build`, `publish`, `status` | Creators and the review server |

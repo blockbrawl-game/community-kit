@@ -7,12 +7,16 @@ Server logic runs in a V8 isolate with nothing but the JavaScript language:
 - No network, files, timers, `eval` or `new Function`.
 - No typed arrays, `ArrayBuffer`, `DataView` or WebAssembly. Use plain arrays; state is JSON anyway.
 - `Math.random()` and `Date` are deterministic: a seeded generator and the match clock. Still, write `ctx.rng` and
-  `ctx.timeMs`: the source policy rejects `Math.random` in every file of an online mode (see below).
+  `ctx.timeMs`: the source policy rejects `Math.random` in server-side files (see below).
 - Given the same seed and the same inputs, a mode must produce exactly the same steps.
 
 ## The client sandbox
 
 The client runs in a sandboxed frame with an opaque origin and a content security policy that blocks all network access. It can only exchange messages with the host shell. Scripts, styles and assets must be part of the mode package; the build turns them into one self-contained document.
+
+There is no `'unsafe-eval'` and no storage (`localStorage` throws in an opaque origin). WebGL and the 2D canvas work.
+For WebGL, use the kit's PixiJS build, `import { Application } from '@blockbrawl/mode-sdk/pixi'`, which works
+under this policy; see [Rendering](rendering.md).
 
 ## Numbers
 
@@ -60,16 +64,26 @@ decided by `bench`, in work units that are the same on every machine: see [Bench
 ## The source policy
 
 `check` also searches every `.js`, `.html`, `.css` and `.json` file of the mode (except under `tests/`) for these,
-and fails on any match:
+and fails on any match. There are two rule sets, because the two halves of a mode run in different places:
 
-| Not allowed | Why |
-|---|---|
-| `eval(`, `new Function(`, dynamic `import(` | Code must be what review read |
-| `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `sendBeacon` | Modes have no network |
-| `Worker`, `SharedWorker`, `ServiceWorker` | Not available in the frame |
-| `ArrayBuffer`, `SharedArrayBuffer`, typed arrays, `DataView` | Removed in the server runtime |
-| `WeakRef`, `FinalizationRegistry` | They reveal garbage collection timing, which is not deterministic; removed in the server runtime |
-| `Math.random` (online modes only) | Replays must be identical; use `ctx.rng` |
+- **Server-side files** are the ones the `server` file or the `clientModel` file imports, directly or not
+  (`server.js`, `shared.js`, `client/model.js` and what they import). They run in the server sandbox, or must
+  replay identically in `test`, so every rule applies.
+- **Client files** are the rest of the client: rendering, input, effects. Only the first three rules apply; typed
+  arrays (WebGL needs them) and `Math.random` (for visual effects) are fine there.
+
+| Not allowed | Where | Why |
+|---|---|---|
+| `eval(`, `new Function(`, dynamic `import(` | everywhere | Code must be what review read |
+| `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `sendBeacon` | everywhere | Modes have no network |
+| `Worker`, `SharedWorker`, `ServiceWorker` | everywhere | Not available in the frame |
+| `ArrayBuffer`, `SharedArrayBuffer`, typed arrays, `DataView` | server-side files | Removed in the server runtime |
+| `WeakRef`, `FinalizationRegistry` | server-side files | They reveal garbage collection timing, which is not deterministic; removed in the server runtime |
+| `Math.random` | server-side files of online modes | Replays must be identical; use `ctx.rng` |
+
+An offline mode has no server side: its whole client follows the client rules. When the server bundle or the client
+model does not build, every file gets every rule (and `build` reports the error). The kit's own files
+(`@blockbrawl/mode-sdk/...`, including the PixiJS build) are not searched.
 
 It is a plain text search, so it also matches those words in comments and strings. Rephrase them ("download"
 instead of "fetch" in a description, for example). The rules are in
