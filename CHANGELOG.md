@@ -25,7 +25,7 @@ re-approved with the new kit. Every entry below says whether build output change
 
 **Work units.** `bench` numbers are part of the contract too: an entry says when they change.
 
-## Unreleased (0.9.0)
+## 0.9.0
 
 PixiJS for mode clients, a source policy that tells server code from client code, and device testing in `dev`.
 

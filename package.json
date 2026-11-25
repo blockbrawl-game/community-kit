@@ -1,6 +1,6 @@
 {
   "name": "@blockbrawl-game/community-kit",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "SDK and dev kit for BlockBrawl community game modes: mode SDK, dev kit (build, test, dev server), sandbox runtime prelude and play-page shell, with example modes.",
   "license": "MIT",
   "type": "module",
