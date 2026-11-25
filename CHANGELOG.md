@@ -25,6 +25,28 @@ re-approved with the new kit. Every entry below says whether build output change
 
 **Work units.** `bench` numbers are part of the contract too: an entry says when they change.
 
+## Unreleased (0.9.0)
+
+PixiJS for mode clients, a source policy that tells server code from client code, and device testing in `dev`.
+
+- **`@blockbrawl/mode-sdk/pixi`**: PixiJS 8.22.0 built for the mode frame (`sdk/pixi.js`, made by
+  `scripts/vendor-pixi.mjs` from the exact `pixi.js` dev dependency). The frame's content security policy has no
+  `'unsafe-eval'`, so the build includes `pixi.js/unsafe-eval`, and everything Pixi loads lazily is bundled in. A
+  mode that imports it gets about 910 KB of its 5 MB client budget. `sdk/pixi.d.ts` re-exports the types from
+  `pixi.js`.
+- **Two policy rule sets** (`devkit/policy.js`). Files the `server` or `clientModel` file imports keep every rule.
+  The rest of the client may now use typed arrays (WebGL needs them) and `Math.random` (visual effects); `eval`,
+  `new Function`, dynamic `import`, network and workers stay refused everywhere. Offline modes follow the client
+  rules. `checkPolicy` is now async.
+- **`dev --bots N`**: the mode's fuzz generator plays the last N seats, through a client model fed the same messages a
+  real client gets, so one person can play a multiplayer mode. **`dev --host 0.0.0.0`** listens on the network so a
+  phone or a game webview can open `player.html?player=<id>` (the links are printed at start).
+- `docs/rendering.md`: PixiJS, rendering on demand, atlases, resolution caps, particle pools, a DOM HUD, themes as data
+  and the budgets review uses. `docs/limits.md` and the agent guide describe the two rule sets.
+- Build output is unchanged for every mode that does not import the new file, so every approved hash stays valid.
+  Work units are unchanged. A mode that passed `check` still passes; a mode that was refused for typed arrays or
+  `Math.random` in rendering code now passes.
+
 ## 0.8.0
 
 The unified runner: one clock for every mode, woken on demand, cheaper calls, merged batches and per-player costs.

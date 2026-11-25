@@ -3,8 +3,10 @@ import http from 'node:http';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { bundleClient, bundleServer, communityRoot, loadMode } from './build.js';
+import { pathToFileURL } from 'node:url';
 import { MatchHost, devPlayers } from './match.js';
 import { ModeError } from './sandbox.js';
+import { makeRng } from './test.js';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -22,11 +24,24 @@ const MIME = {
   '.woff2': 'font/woff2',
 };
 
-export async function startDevServer({ modeName, port = 5173, playerCount, seed }) {
+export async function startDevServer({ modeName, port = 5173, host: listenHost = '127.0.0.1', playerCount, seed, bots = 0, botDelayMs = 700 }) {
   const mode = await loadMode(modeName);
   const { manifest } = mode;
   const count = Math.min(manifest.players.max, Math.max(manifest.players.min, playerCount ?? 2));
   const players = devPlayers(count);
+  // `--bots N`: the last N players are played by the mode's own fuzz generator (tests/fuzz.js), through a client
+  // model fed with the same messages a real client gets. So one person can play a two-player mode, on a phone too.
+  const botCount = Math.max(0, Math.min(count - 1, bots));
+  const botIds = new Set(players.slice(count - botCount).map((p) => p.id));
+  for (const p of players) if (botIds.has(p.id)) { p.name = `Bot ${p.name.split(' ')[1]}`; p.isBot = true; }
+  let botKit = null;
+  if (botCount > 0) {
+    if (!manifest.fuzz) throw new Error('--bots needs a "fuzz" file in mode.json: the bots play with its nextAction.');
+    const { createModel } = await import(pathToFileURL(path.join(mode.dir, manifest.clientModel)).href);
+    const { nextAction } = await import(pathToFileURL(path.join(mode.dir, manifest.fuzz)).href);
+    botKit = { createModel, nextAction, rng: makeRng((seed ?? 1) ^ 0x5bd1e995) };
+  }
+  const botState = new Map();
 
   /** @type {MatchHost} */
   let host;
@@ -44,7 +59,32 @@ export async function startDevServer({ modeName, port = 5173, playerCount, seed 
     for (const res of dashboards) res.write(line);
   }
 
+  function botThink(playerId) {
+    const bot = botState.get(playerId);
+    if (!bot || bot.timer || host.ended) return;
+    bot.timer = setTimeout(() => {
+      bot.timer = null;
+      if (botState.get(playerId) !== bot || host.ended) return;
+      const action = botKit.nextAction(bot.model, playerId, botKit.rng);
+      if (action == null) return;
+      guard(() => {
+        if (running) startedAt += host.advanceTo(hostNow());
+        host.action(playerId, `bot${++bot.actions}`, action, running ? hostNow() : host.timeMs);
+      });
+    }, botDelayMs);
+  }
+
+  function toBot(playerId, message) {
+    const bot = botState.get(playerId);
+    if (!bot) return;
+    if (message.kind === 'sync') bot.model.applySync(message.steps, message.info);
+    else if (message.kind === 'steps') bot.model.applySteps(message);
+    else if (message.kind === 'rejected') bot.model.onRejected?.(message.actionId, message.reason);
+    if (message.kind === 'sync' || message.kind === 'steps' || message.kind === 'rejected') botThink(playerId);
+  }
+
   function deliver(playerId, message) {
+    if (botIds.has(playerId)) return toBot(playerId, message);
     const conn = conns.get(playerId);
     const index = players.findIndex((p) => p.id === playerId);
     const bytes = JSON.stringify(message).length;
@@ -126,7 +166,11 @@ export async function startDevServer({ modeName, port = 5173, playerCount, seed 
       seed: newSeed ?? Math.floor(Math.random() * 0x7fffffff),
       onSend: deliver,
     });
+    for (const bot of botState.values()) clearTimeout(bot.timer);
+    botState.clear();
+    for (const id of botIds) botState.set(id, { model: botKit.createModel(), timer: null, actions: 0 });
     guard(() => host.start());
+    for (const id of botIds) guard(() => host.sync(id));
     toDashboards({ type: 'match', matchNumber, seed: host.seed });
     console.log(`Match ${matchNumber} started (seed ${host.seed}, ${players.length} players).`);
     // Ticking starts when the first player connects, so turn timers do not run against an empty room.
@@ -285,8 +329,14 @@ export async function startDevServer({ modeName, port = 5173, playerCount, seed 
   await newMatch(seed);
   await new Promise((resolve, reject) => {
     server.once('error', reject);
-    server.listen(port, '127.0.0.1', resolve);
+    server.listen(port, listenHost, resolve);
   });
   console.log(`\n${manifest.name} ${manifest.version} is running.\nDashboard: http://localhost:${port}/\n`);
+  const humans = players.filter((p) => !botIds.has(p.id));
+  if (botCount > 0) console.log(`${botCount} bot${botCount > 1 ? 's' : ''} playing. One player's view:`);
+  else console.log("One player's view (for a phone or a webview):");
+  for (const p of humans) console.log(`  http://${listenHost === '0.0.0.0' ? '<this-computer-ip>' : 'localhost'}:${port}/player.html?player=${p.id}`);
+  if (listenHost === '127.0.0.1') console.log('Add --host 0.0.0.0 to open it from another device on your network.');
+  console.log('');
   return { server, port, close: () => { stopTicker(); server.close(); } };
 }

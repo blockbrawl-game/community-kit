@@ -33,7 +33,7 @@ plus `AGENTS.md`, `CLAUDE.md` and `jsconfig.json` for your assistant and editor.
 | Command | What it does |
 | --- | --- |
 | `brawl-modes new <id> [--template turn\|realtime\|offline]` | A new mode that passes `check` as generated |
-| `brawl-modes dev <mode> [--players N]` | Plays the mode in the browser: every player side by side, latency and packet-drop sliders, a message log and the live server state |
+| `brawl-modes dev <mode> [--players N] [--bots N] [--host 0.0.0.0]` | Plays the mode in the browser: every player side by side, latency and packet-drop sliders, a message log and the live server state. `--bots` lets the mode's fuzz generator play the last N seats; `--host 0.0.0.0` lets a phone on your network open one player's view |
 | `brawl-modes test <mode>` | Fuzz, sync, determinism, hydration and size checks |
 | `brawl-modes bench <mode>` | Server cost in work units, the same on every machine, against the server's gates |
 | `brawl-modes check <mode>` | Everything review runs, with one verdict: run this before submitting |
@@ -64,7 +64,7 @@ node devkit/cli.js dev duel-lite  # npx brawl-modes ... is node devkit/cli.js ..
 
 | Folder | What it is |
 | --- | --- |
-| `sdk/` | `defineMode`, `reject`, `connect`, `connectOffline` and the TypeScript interfaces (`types.d.ts`) |
+| `sdk/` | `defineMode`, `reject`, `connect`, `connectOffline`, the TypeScript interfaces (`types.d.ts`) and a PixiJS build for the mode frame (`pixi.js`) |
 | `runtime/` | The sandbox prelude and limits shared by the dev kit and the real server |
 | `shell/` | The trusted host page code that wraps a mode client |
 | `devkit/` | The `brawl-modes` command: `new`, `dev`, `test`, `bench`, `check`, `build` |
@@ -102,6 +102,7 @@ Start with `brawl-modes new`. Every example has a README saying what it teaches.
 - [Steps and sync](docs/steps-and-sync.md): how to keep clients consistent and bandwidth low.
 - [Prediction](docs/prediction.md): making fast-paced modes feel instant.
 - [Limits and testing](docs/limits.md): the sandbox rules and what `brawl-modes test` checks.
+- [Rendering](docs/rendering.md): PixiJS from the kit, rendering on demand and keeping phones cool.
 - [Benchmark](docs/benchmark.md): work units, the server's two performance gates, and how to get under them.
 - [Offline modes](docs/offline-modes.md): single-player modes with no server.
 - [The store listing](docs/listing.md): name, tagline, description, tags and thumbnail.

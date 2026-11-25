@@ -8,7 +8,7 @@ const USAGE = `brawl-modes: build, test and check BlockBrawl community modes.
 
 Usage:
   brawl-modes new <id> [--template turn|realtime|offline] [--name "Display name"]
-  brawl-modes dev <mode> [--players N] [--port 5173] [--seed N]
+  brawl-modes dev <mode> [--players N] [--bots N] [--port 5173] [--host 127.0.0.1] [--seed N]
   brawl-modes dev <mode> --remote [--gateway http://localhost:5121] [--players N] [--port 5173]
   brawl-modes test <mode> [--runs 20] [--seed N] [--record file.json] [--json]
   brawl-modes bench <mode> [--runs 10] [--seed N] [--json]
@@ -120,7 +120,9 @@ try {
     await startDevServer({
       modeName,
       port: intFlag(flags.port, 'port'),
+      host: typeof flags.host === 'string' ? flags.host : undefined,
       playerCount: intFlag(flags.players, 'players'),
+      bots: intFlag(flags.bots, 'bots'),
       seed: intFlag(flags.seed, 'seed'),
     });
   } else if (command === 'test') {
